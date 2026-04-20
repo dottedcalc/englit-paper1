@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analytical Essay (Literature) Grader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body data-page="dashboard">
+    <div class="bg-pattern" aria-hidden="true"></div>
+    <div class="page">
+      <header class="hero">
+        <p class="eyebrow">IB English A · Paper 1</p>
+        <h1>Analytical Essay (Literature) Grader</h1>
+      </header>
+
+      <section class="tos-panel" aria-labelledby="tosHeading">
+        <h2 id="tosHeading" class="tos-heading">Terms of service</h2>
+        <ol class="tos-list">
+          <li>
+            This tool <strong>only</strong> judges <strong>either</strong> an analysis paragraph <strong>or</strong> a
+            full analytical essay based on an <strong>unseen literary</strong> passage (<strong>text-only</strong>;
+            <strong>no</strong> multimedia). <strong>English A Language &amp; Literature</strong> uses different
+            expectations from Literature Paper&nbsp;1; this workflow is <strong>not</strong> claiming to match
+            Lang&nbsp;&amp; Lit standards. Scoring is <strong>referenced</strong> to <strong>IB English A
+            Paper&nbsp;1</strong> criteria. You may use it for other tests, but scores are <strong>not</strong>
+            norm-referenced to those examinations.
+          </li>
+          <li>
+            <strong>International Baccalaureate</strong> and <strong>IB</strong> are trademarks of the International
+            Baccalaureate Organization. This site and tool are <strong>not affiliated with, endorsed by, or sponsored
+            by</strong> the IBO or any IB school.
+          </li>
+          <li>
+            Essay grading is <strong>inherently subjective</strong>. We use a proprietary prompt and multi-step
+            workflow, but model outputs involve <strong>randomness</strong> and may differ from your teacher’s mark.
+            <strong>No refunds</strong> will be issued for disagreement with an instructor’s grade or for perceived
+            inaccuracy of scores shown here.
+          </li>
+          <li>
+            You must supply your own <strong>Google Gemini API key</strong> and <strong>choose a Gemini model</strong>
+            in the section below. API usage and charges are billed by Google (or your API provider) to your account.
+            <strong>Different models will change scoring:</strong> more advanced, sophisticated models tend to produce
+            more consistent, accurate judgments than smaller or lighter models, though no model guarantees a match to an
+            official IB mark.
+          </li>
+          <li>
+            Your <strong>API key</strong>, <strong>source text</strong>, <strong>paragraph</strong>, and saved
+            criterion results are kept <strong>only in this browser</strong> (e.g. localStorage); they are
+            <strong>not</strong> uploaded to or stored on this site’s servers. Model responses are <strong>not</strong>
+            used to train any model owned or operated by the developer. By using the tool you <strong>consent</strong>
+            to sending your inputs (and prompts built from them) to <strong>Google’s Gemini API</strong> under
+            Google’s terms and privacy policy.
+          </li>
+          <li>
+            <strong>Do not refresh</strong> the page while <strong>grading</strong> or during an <strong>active
+            session</strong>—you might <strong>lose progress</strong>. Although this tool tries to
+            <strong>persist state in this browser</strong>, a refresh or navigation is <strong>not</strong> guaranteed
+            to preserve your work.
+          </li>
+          <li>
+            This website is governed by <strong>Chinese law</strong> (the laws of the People’s Republic of China).
+            Any dispute arising from or relating to this website or these terms shall be resolved in
+            <strong>that jurisdiction</strong> (the PRC).
+          </li>
+        </ol>
+      </section>
+
+      <section class="panel credentials-panel">
+        <h2 class="panel-title">Gemini API</h2>
+        <p class="hint">
+          Requests use the
+          <a href="https://ai.google.dev/gemini-api/docs" target="_blank" rel="noopener noreferrer">Gemini API</a>
+          <code>generateContent</code> endpoint with the model you select (each choice maps to Google's official
+          <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer">model id</a>
+          in the request). Your key and model choice are stored in this browser (localStorage). See the Terms of
+          service above for liability.
+        </p>
+        <label class="field">
+          <span class="label-text">API key</span>
+          <input
+            type="password"
+            id="apiKey"
+            name="apiKey"
+            autocomplete="off"
+            placeholder="Paste your Google AI Studio / Gemini API key"
+          />
+        </label>
+        <label class="field">
+          <span class="label-text">Model</span>
+          <select id="modelSelect" name="model" class="field-select">
+            <option value="gemma-4-31b-it" data-tier="open">Gemma 4 31B (higher quota, open source)</option>
+            <option value="gemini-3.1-flash-lite-preview" data-tier="lite">Gemini 3.1 Flash-Lite (preview)</option>
+            <option value="gemini-3-flash-preview" data-tier="flash">Gemini 3 Flash (preview)</option>
+            <option value="gemini-3.1-pro-preview" data-tier="pro">Gemini 3.1 Pro (preview)</option>
+          </select>
+          <p class="model-tier-note model-tier-note--lite" id="modelTierNote" aria-live="polite">
+            <strong class="model-tier-note__lead"></strong><span class="model-tier-note__rest"></span>
+          </p>
+          <p class="hint model-free-tier-hint">
+            <strong>Google API free tier:</strong> Among the models listed here, <strong>Gemma 4 31B</strong> and
+            <strong>Gemini 3.1 Flash-Lite</strong> are the ones usually available on the Gemini API free tier;
+            <strong>Gemini 3 Flash</strong> and <strong>Gemini 3.1 Pro</strong> typically require a billed project and
+            are not free-tier defaults. <strong>Quotas (indicative):</strong> Gemma 4 — about
+            <strong>1500 requests per day (RPD)</strong>, generally high availability. Flash-Lite — about
+            <strong>500 RPD</strong>; you may occasionally get <strong>503 Unavailable</strong> when the service is
+            at capacity.
+          </p>
+        </label>
+      </section>
+
+      <section class="panel input-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Source text</h2>
+          <span class="char-count" id="charCount" aria-live="polite">0 characters</span>
+        </div>
+        <label class="field sr-only" for="sourceText">Source text</label>
+        <textarea
+          id="sourceText"
+          name="sourceText"
+          rows="18"
+          placeholder="Paste the full unseen passage or extract here…"
+        ></textarea>
+        <div class="panel-head student-head">
+          <h2 class="panel-title">Your Analytical Response</h2>
+          <span class="char-count" id="paraCharCount" aria-live="polite">0 characters</span>
+        </div>
+        <label class="field sr-only" for="studentParagraph">Your analytical response</label>
+        <textarea
+          id="studentParagraph"
+          name="studentParagraph"
+          rows="10"
+          class="textarea-compact"
+          placeholder="Paste your Paper 1 analytical response (one paragraph or full essay)…"
+        ></textarea>
+
+        <div class="essay-structure-preview" id="essayStructurePreview" hidden aria-live="polite"></div>
+
+        <p class="status-line" id="statusLine" aria-live="polite" hidden></p>
+
+        <div class="actions">
+          <button type="button" class="btn ghost" id="clearBtn">
+            Clear all
+          </button>
+        </div>
+        <p class="error" id="errorBox" role="alert" hidden></p>
+      </section>
+
+      <section class="panel criteria-board" aria-labelledby="criteriaBoardTitle">
+        <h2 class="panel-title" id="criteriaBoardTitle">Criteria</h2>
+        <p class="criteria-board__hint">
+          Paste the source passage and your response, then use <strong>Classify paragraph or essay</strong> before running
+          any criterion. When you are done with this session, use <strong>Clear all</strong> to reset inputs, scores, and
+          classification so you can start fresh.
+        </p>
+        <div class="paragraph-format-gate" id="paragraphFormatGate">
+          <button type="button" class="btn primary paragraph-format-gate__btn" id="classifyParagraphEssayBtn">
+            <span class="classify-paragraph-essay__label">Classify paragraph or essay</span>
+          </button>
+          <div
+            class="paragraph-format-label-wrap"
+            id="paragraphFormatLabelWrap"
+            hidden
+            aria-live="polite"
+          >
+            <p class="paragraph-format-label" id="paragraphFormatLabel"></p>
+            <p class="paragraph-format-rationale" id="paragraphFormatRationale" hidden></p>
+          </div>
+        </div>
+        <div class="criteria-grid">
+          <div
+            class="criterion-tile criterion-tile--a criterion-tile--active"
+            id="criterionATile"
+          >
+            <p class="criterion-tile__title">A: Knowledge and Understanding</p>
+            <div class="criterion-tile__middle">
+              <div
+                class="criterion-tile__score-line"
+                id="criterionATileScoreLine"
+                hidden
+                aria-live="polite"
+              >
+                <span class="criterion-tile__score-num" id="criterionATileScoreNum"></span><span class="criterion-tile__score-suffix"> / 5</span>
+              </div>
+              <p class="criterion-tile__score-caption" id="criterionATileScoreCaption" hidden>
+                Criterion A Moderated Mark
+              </p>
+              <ul
+                class="criterion-tile__per-para-scores"
+                id="criterionATilePerParaScores"
+                hidden
+                aria-label="Scores per body paragraph"
+              ></ul>
+            </div>
+            <div class="criterion-tile__actions">
+              <button type="button" class="btn primary criterion-tile__run" id="criterionATileRun">
+                <span class="criterion-tile__btn-label">Run Criterion A</span>
+                <span
+                  class="btn-spinner criterion-tile__spinner"
+                  id="criterionATileSpinner"
+                  hidden
+                  aria-hidden="true"
+                ></span>
+              </button>
+              <a
+                class="btn ghost criterion-tile__detail"
+                id="criterionATileDetailLink"
+                href="criterion-a-detail.html"
+                hidden
+                >See detail</a
+              >
+            </div>
+          </div>
+
+          <div
+            class="criterion-tile criterion-tile--b criterion-tile--active criterion-tile--b-active"
+            id="criterionBTile"
+          >
+            <p class="criterion-tile__title">B: Analysis and Evaluation</p>
+            <div class="criterion-tile__middle">
+              <div
+                class="criterion-tile__score-line"
+                id="criterionBTileScoreLine"
+                hidden
+                aria-live="polite"
+              >
+                <span class="criterion-tile__score-num" id="criterionBTileScoreNum"></span
+                ><span class="criterion-tile__score-suffix"> / 5</span>
+              </div>
+              <p class="criterion-tile__score-caption" id="criterionBTileScoreCaption" hidden>
+                Criterion B Moderated Mark
+              </p>
+              <ul
+                class="criterion-tile__per-para-scores"
+                id="criterionBTilePerParaScores"
+                hidden
+                aria-label="Scores per body paragraph"
+              ></ul>
+            </div>
+            <div class="criterion-tile__actions">
+              <button type="button" class="btn primary criterion-tile__run" id="criterionBTileRun">
+                <span class="criterion-tile__btn-label">Run Criterion B</span>
+                <span
+                  class="btn-spinner criterion-tile__spinner"
+                  id="criterionBTileSpinner"
+                  hidden
+                  aria-hidden="true"
+                ></span>
+              </button>
+              <a
+                class="btn ghost criterion-tile__detail"
+                id="criterionBTileDetailLink"
+                href="criterion-b-detail.html"
+                hidden
+                >See detail</a
+              >
+            </div>
+          </div>
+
+          <div
+            class="criterion-tile criterion-tile--c criterion-tile--active criterion-tile--c-active"
+            id="criterionCTile"
+          >
+            <p class="criterion-tile__title">C: Focus, Organization &amp; Development</p>
+            <div class="criterion-tile__middle">
+              <div
+                class="criterion-tile__score-line"
+                id="criterionCTileFinalLine"
+                hidden
+                aria-live="polite"
+              >
+                <span class="criterion-tile__score-num" id="criterionCTileFinalNum"></span
+                ><span class="criterion-tile__score-suffix"> / 5</span>
+              </div>
+              <p class="criterion-tile__score-caption" id="criterionCTileFinalCaption" hidden>
+                Criterion C Moderated Mark
+              </p>
+            </div>
+            <div class="criterion-tile__actions">
+              <button type="button" class="btn primary criterion-tile__run" id="criterionCTileRun">
+                <span class="criterion-tile__btn-label">Run Criterion C</span>
+                <span
+                  class="btn-spinner criterion-tile__spinner"
+                  id="criterionCTileSpinner"
+                  hidden
+                  aria-hidden="true"
+                ></span>
+              </button>
+              <a
+                class="btn ghost criterion-tile__detail"
+                id="criterionCTileDetailLink"
+                href="criterion-c-detail.html"
+                hidden
+                >See detail</a
+              >
+            </div>
+          </div>
+
+          <div
+            class="criterion-tile criterion-tile--d criterion-tile--active criterion-tile--d-active"
+            id="criterionDTile"
+          >
+            <p class="criterion-tile__title">D: Language</p>
+            <div class="criterion-tile__middle">
+              <div
+                class="criterion-tile__score-line"
+                id="criterionDTileScoreLineFinal"
+                hidden
+                aria-live="polite"
+              >
+                <span class="criterion-tile__score-num" id="criterionDTileScoreNumFinal"></span
+                ><span class="criterion-tile__score-suffix"> / 5</span>
+              </div>
+              <p class="criterion-tile__score-caption" id="criterionDTileScoreCaptionFinal" hidden>
+                Criterion D Moderated Mark
+              </p>
+            </div>
+            <div class="criterion-tile__actions">
+              <button type="button" class="btn primary criterion-tile__run" id="criterionDTileRun">
+                <span class="criterion-tile__btn-label">Run Criterion D</span>
+                <span
+                  class="btn-spinner criterion-tile__spinner"
+                  id="criterionDTileSpinner"
+                  hidden
+                  aria-hidden="true"
+                ></span>
+              </button>
+              <a
+                class="btn ghost criterion-tile__detail"
+                id="criterionDTileDetailLink"
+                href="criterion-d-detail.html"
+                hidden
+                >See detail</a
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="ib-overall-panel" id="ibOverallPanel">
+          <h3 class="ib-overall-panel__title">IB overall (Paper&nbsp;1)</h3>
+          <p class="ib-overall-panel__locked" id="ibOverallLockedMsg" aria-live="polite">
+            Score all components first — run Criteria A, B, C, and D.
+          </p>
+          <div class="ib-overall-panel__reveal-wrap" id="ibOverallRevealWrap" hidden>
+            <button type="button" class="btn primary ib-overall-reveal-btn" id="ibOverallRevealBtn">
+              Reveal final score
+            </button>
+            <div
+              class="ib-overall-moderation-loading"
+              id="ibOverallModerationLoading"
+              hidden
+              aria-live="polite"
+              aria-busy="false"
+            >
+              <span class="ib-overall-moderation-spinner" aria-hidden="true"></span>
+              <span class="ib-overall-moderation-loading__text">Moderating final scores…</span>
+            </div>
+          </div>
+          <div
+            class="ib-overall-result"
+            id="ibOverallResult"
+            hidden
+            tabindex="-1"
+            aria-live="polite"
+          ></div>
+          <div class="ib-overall-panel__pdf-wrap" id="ibOverallPdfWrap" hidden>
+            <button type="button" class="btn ghost ib-overall-pdf-btn" id="ibOverallPdfBtn">
+              Download full PDF report
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div
+        id="gradingConfirmBackdrop"
+        class="grading-confirm-backdrop"
+        hidden
+        aria-hidden="true"
+        aria-modal="true"
+        role="presentation"
+      >
+        <div class="grading-confirm-dialog" role="dialog" aria-labelledby="gradingConfirmTitle">
+          <h2 id="gradingConfirmTitle" class="grading-confirm-dialog__title">Run Grading?</h2>
+          <div id="gradingConfirmBody" class="grading-confirm-dialog__body"></div>
+          <div class="grading-confirm-dialog__actions">
+            <button type="button" class="btn ghost" id="gradingConfirmNo">No</button>
+            <button type="button" class="btn primary" id="gradingConfirmYes">Yes, start grading</button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="gradingProgressBackdrop"
+        class="grading-progress-backdrop"
+        hidden
+        aria-hidden="true"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div class="grading-progress-card">
+          <p id="gradingProgressCriterion" class="grading-progress-card__criterion"></p>
+          <p id="gradingProgressStep" class="grading-progress-card__step"></p>
+          <p id="gradingProgressCount" class="grading-progress-card__count"></p>
+          <div class="grading-progress-bar" aria-hidden="true">
+            <div id="gradingProgressBarFill" class="grading-progress-bar__fill"></div>
+          </div>
+          <p
+            class="error grading-progress-card__error"
+            id="gradingProgressError"
+            role="alert"
+            hidden
+          ></p>
+          <p class="grading-progress-card__hint">Grading cannot be cancelled from this screen. Please wait.</p>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <p>
+          For production use, call the API from your own server so the key is not exposed in the
+          browser.
+        </p>
+        <p>
+          © 2026 Ken Liu. This website, including its prompt sequences and multi-step IB Paper&nbsp;1 grading
+          workflow, is authored by Ken Liu. All rights reserved.
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

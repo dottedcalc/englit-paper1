@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Criteria A Scoring Detail · IB Paper 1 Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body data-page="criterion-a-detail">
+    <div class="bg-pattern" aria-hidden="true"></div>
+    <div class="page page--detail">
+      <header class="detail-header">
+        <a class="btn ghost detail-back" href="index.html">← Back</a>
+        <div class="detail-header__text">
+          <h1>Criteria A Scoring Detail</h1>
+        </div>
+      </header>
+
+      <p class="error" id="errorBox" role="alert" hidden></p>
+
+      <section class="panel final-grade-panel" id="criterionAFinalEssayAssignerSection" hidden>
+        <h2 class="panel-title">Final Criterion A — whole essay (examiner)</h2>
+        <p class="final-grade-panel__lede output-hint" id="criterionAFinalEssayAssignerHint" hidden></p>
+        <div class="final-grade-panel__body" id="criterionAFinalEssayAssignerBody"></div>
+      </section>
+
+      <section class="panel essay-para-picker-panel" id="criterionAEssayParaPicker" hidden>
+        <h2 class="panel-title">Body paragraphs</h2>
+        <p class="output-hint">
+          Choose a body paragraph for its paragraph audit, or <strong>Whole essay</strong> for the whole-essay benchmark view.
+        </p>
+        <table class="essay-para-picker__table">
+          <thead>
+            <tr>
+              <th scope="col">Paragraph</th>
+              <th scope="col">Score</th>
+            </tr>
+          </thead>
+          <tbody id="criterionAEssayParaPickerTbody"></tbody>
+        </table>
+      </section>
+
+      <section class="panel output-panel" id="outputSection">
+        <h2 class="panel-title">Paragraph audit</h2>
+        <p class="output-hint">
+          Hover the highlighted spans in the audit to see how each analytical set was judged.
+        </p>
+        <aside
+          class="reasoning-validity-note"
+          id="criterionAParagraphAuditReasoningNote"
+          role="note"
+          aria-label="Meaning of reasoning labels a, b, c"
+        >
+          <p class="reasoning-validity-note__title">Reasoning <strong>0–4</strong> — sub-scores <span class="reasoning-validity-note__letters">(a)</span>, <span class="reasoning-validity-note__letters">(b)</span>, <span class="reasoning-validity-note__letters">(c)</span></p>
+          <p class="reasoning-validity-note__lede">
+            Total <strong>reasoning</strong> = (a) + (b) + (c). The hover table lists each part when present; the justification quotes student wording for each.
+          </p>
+          <ul class="reasoning-validity-note__list">
+            <li><strong>(a) Deducible conclusion (0–2)</strong> — explains the evidence and shows how it proves the claim sentence by sentence; 2 = clear mechanism, 1 = minor leap or confusion, 0 = unclear or unjustified.</li>
+            <li><strong>(b) Precise concept &amp; wording (0–1)</strong> — concepts match what the evidence supports; no bait-and-switch, mid-argument shift, or broader claim than the evidence allows.</li>
+            <li><strong>(c) Linear / not circular (0–1)</strong> — 1 = linear chain with clear purpose between sentences; 0 = circular, redundant, confusing, or assumes the conclusion.</li>
+          </ul>
+        </aside>
+        <div class="output-scroll">
+          <article class="markdown-body audit-output" id="output"></article>
+        </div>
+        <div id="auditTooltip" class="audit-tooltip" role="tooltip" hidden></div>
+        <button type="button" class="btn ghost small" id="copyBtn">Copy audit (JSON)</button>
+      </section>
+
+      <section class="panel topic-audit-panel" id="topicArgumentSection">
+        <h2 class="panel-title topic-audit-panel__title">Topic sentence / argument audit</h2>
+        <p class="topic-audit-panel__subtitle">
+          Conceptual alignment (topic sophistication &amp; thematic drift vs. each analytical set)
+        </p>
+        <div class="topic-audit-panel__body output-scroll">
+          <div class="markdown-body topic-audit-content" id="topicAuditOutput"></div>
+        </div>
+        <button type="button" class="btn ghost small" id="copyTopicAuditBtn">Copy topic audit (JSON)</button>
+      </section>
+
+      <section class="panel final-grade-panel" id="finalGradeSection">
+        <h2 class="panel-title final-grade-panel__title">Step 4 of 4 — Final Criterion A grade</h2>
+        <p class="final-grade-panel__lede">
+          Mean of the two ratings below (paragraph audit · step 2, and topic/argument audit · step
+          3).
+        </p>
+        <div class="final-grade-panel__body" id="finalGradeOutput"></div>
+      </section>
+
+      <footer class="footer">
+        <p>
+          <a href="index.html">← Return to dashboard</a>
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

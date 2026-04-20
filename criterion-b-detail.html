@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Criteria B Scoring Detail · IB Paper 1 Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body data-page="criterion-b-detail">
+    <div class="bg-pattern" aria-hidden="true"></div>
+    <div class="page page--detail">
+      <header class="detail-header">
+        <a class="btn ghost detail-back" href="index.html">← Back</a>
+        <div class="detail-header__text">
+          <h1>Criteria B Scoring Detail</h1>
+        </div>
+      </header>
+
+      <p class="error" id="errorBox" role="alert" hidden></p>
+
+      <section class="panel final-grade-panel criterion-b-final-examiner-panel" id="criterionBFinalExaminerSection" hidden>
+        <h2 class="panel-title final-grade-panel__title">Final Criterion B — IB examiner score</h2>
+        <p class="final-grade-panel__lede">
+          Official 0–5 descriptor bands (0.5 steps). Shown first; this is the mark on the dashboard when present.
+        </p>
+        <div class="final-grade-panel__body" id="criterionBFinalExaminerOutput"></div>
+        <button type="button" class="btn ghost small" id="criterionBCopyFinalExaminerBtn">
+          Copy final examiner (JSON)
+        </button>
+      </section>
+
+      <section class="panel essay-para-picker-panel" id="criterionBEssayParaPicker" hidden>
+        <h2 class="panel-title">Body paragraphs</h2>
+        <p class="output-hint">
+          Choose a <strong>paragraph</strong> to show only that paragraph’s audit, checkpoints, and step-3 mark below.
+          Choose a <strong>whole essay</strong> row to show only whole-essay holistics (nothing else on the page).
+        </p>
+        <table class="essay-para-picker__table">
+          <thead>
+            <tr>
+              <th scope="col">Paragraph</th>
+              <th scope="col">Score</th>
+            </tr>
+          </thead>
+          <tbody id="criterionBEssayParaPickerTbody"></tbody>
+        </table>
+      </section>
+
+      <section class="panel output-panel" id="criterionBPhase1Section">
+        <h2 class="panel-title">Step 1 — Topic sentence (per body paragraph)</h2>
+        <p class="output-hint">
+          Score 2 = broad/significant craft; 1 = narrow/localized device; 0 = descriptive or summary
+          only (no technique).
+        </p>
+        <div class="output-scroll">
+          <div class="markdown-body criterion-b-phase1" id="criterionBPhase1Output"></div>
+        </div>
+      </section>
+
+      <section class="panel output-panel criterion-b-audit-panel" id="criterionBOutputSection">
+        <h2 class="panel-title">Step 2 — Paragraph highlight &amp; audit</h2>
+        <p class="output-hint">
+          Colours reflect the browser-weighted set total out of 9: <strong>8–9</strong>, <strong>6–7</strong>,
+          <strong>4–5</strong>, <strong>1–3</strong>, plus a separate outside band. Hover a span for the full rubric
+          table.
+        </p>
+        <div class="output-scroll">
+          <article class="markdown-body audit-output criterion-b-audit-output" id="criterionBOutput"></article>
+        </div>
+        <div id="criterionBTooltip" class="audit-tooltip" role="tooltip" hidden></div>
+        <button type="button" class="btn ghost small" id="criterionBCopyBtn">Copy grading (JSON)</button>
+      </section>
+
+      <section class="panel output-panel criterion-b-set-blocks-panel" id="criterionBSetBlocksSection">
+        <h2 class="panel-title">Step 2 — Per-set checkpoint tables</h2>
+        <p class="output-hint">Technique checkpoints and browser-computed totals for each set in the loaded paragraph.</p>
+        <div class="output-scroll">
+          <div class="markdown-body" id="criterionBSetBlocks"></div>
+        </div>
+      </section>
+
+      <section class="panel output-panel criterion-b-essay-holistic-panel" id="criterionBEssayHolisticSection" hidden>
+        <h2 class="panel-title">Essay mode — whole-response holistic checks</h2>
+        <p class="output-hint">
+          Two separate model passes over the <strong>entire</strong> student essay (after per–body-paragraph Criterion B
+          steps): (1) explicit awareness of each benchmark <strong>shift</strong> in authorial approach, rated
+          <strong>*</strong> / <strong>**</strong> / <strong>***</strong>; (2) <strong>genre-specific</strong> craft
+          vs generic technique discussion, same star scale. Does not change per-paragraph marks.
+        </p>
+        <div class="output-scroll">
+          <div class="markdown-body" id="criterionBEssayHolisticOutput"></div>
+        </div>
+        <button type="button" class="btn ghost small" id="criterionBCopyEssayHolisticBtn">
+          Copy essay holistic checks (JSON)
+        </button>
+      </section>
+
+      <section class="panel final-grade-panel criterion-b-summary-panel" id="criterionBSummarySection">
+        <h2 class="panel-title final-grade-panel__title">Step 3 — Holistic Criterion B grade (per paragraph)</h2>
+        <p class="final-grade-panel__lede">
+          A separate model pass reads the step-2 audit digest only (not the full source or full paragraph). Half-points
+          allowed between whole scores.
+        </p>
+        <div class="final-grade-panel__body" id="criterionBSummaryOutput"></div>
+        <button type="button" class="btn ghost small" id="criterionBCopyStep3Btn">Copy step 3 (JSON)</button>
+      </section>
+
+      <footer class="footer">
+        <p>
+          <a href="index.html">← Return to dashboard</a>
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

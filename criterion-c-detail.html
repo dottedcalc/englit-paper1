@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Criterion C Scoring Detail · IB Paper 1 Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,500&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body data-page="criterion-c-detail">
+    <div class="bg-pattern" aria-hidden="true"></div>
+    <div class="page page--detail">
+      <header class="detail-header">
+        <a class="btn ghost detail-back" href="index.html">← Back</a>
+        <div class="detail-header__text">
+          <h1>Criterion C Scoring Detail</h1>
+        </div>
+      </header>
+
+      <p class="error" id="errorBox" role="alert" hidden></p>
+
+      <section class="panel final-grade-panel criterion-c-final-examiner-panel" id="criterionCEssayFinalExaminerSection" hidden>
+        <h2 class="panel-title final-grade-panel__title">Final Criterion C — IB examiner score</h2>
+        <div class="final-grade-panel__body" id="criterionCEssayFinalExaminerOutput"></div>
+        <button type="button" class="btn ghost small" id="criterionCCopyEssayFinalExaminerBtn">
+          Copy final examiner (JSON)
+        </button>
+      </section>
+
+      <section class="panel essay-para-picker-panel" id="criterionCEssayParaPicker" hidden>
+        <h2 class="panel-title">Body paragraphs</h2>
+        <table class="essay-para-picker__table">
+          <thead>
+            <tr>
+              <th scope="col">Paragraph</th>
+              <th scope="col">Paragraph Criterion C Score</th>
+            </tr>
+          </thead>
+          <tbody id="criterionCEssayParaPickerTbody"></tbody>
+        </table>
+      </section>
+
+      <section class="panel output-panel criterion-c-essay-holistic-panel" id="criterionCEssayHolisticSection" hidden>
+        <h2 class="panel-title">Essay mode — whole-essay holistic checks</h2>
+        <div class="output-scroll">
+          <div class="markdown-body" id="criterionCEssayHolisticOutput"></div>
+        </div>
+        <button type="button" class="btn ghost small" id="criterionCCopyEssayHolisticBtn">
+          Copy essay holistic checks (JSON)
+        </button>
+      </section>
+
+      <section class="panel final-grade-panel" id="criterionCLoraSection">
+        <h2 class="panel-title final-grade-panel__title">Step 1 of 3 — Line of Reasoning Auditor</h2>
+        <div id="criterionCLoraMetaOutput" class="criterion-c-lora-meta-wrap"></div>
+        <div class="topic-audit-panel__body output-scroll criterion-c-step1-body">
+          <div class="markdown-body criterion-c-step1-main" id="criterionCLoraOutput"></div>
+        </div>
+        <button type="button" class="btn ghost small" id="criterionCCopyLoraBtn">Copy step 1 (JSON)</button>
+      </section>
+
+      <section class="panel final-grade-panel criterion-c-tangent-panel" id="criterionCTangentSection">
+        <h2 class="panel-title final-grade-panel__title">Step 2 of 3 — Tangent and Repetition Detector</h2>
+        <div class="topic-audit-panel__body output-scroll">
+          <div class="markdown-body" id="criterionCTangentOutput"></div>
+        </div>
+        <button type="button" class="btn ghost small" id="criterionCCopyTangentBtn">Copy step 2 (JSON)</button>
+      </section>
+
+      <section class="panel final-grade-panel criterion-c-moderator-panel" id="criterionCModeratorSection">
+        <h2 class="panel-title final-grade-panel__title">Step 3 of 3 — Strategic Evaluator</h2>
+        <div class="topic-audit-panel__body output-scroll">
+          <div class="markdown-body" id="criterionCModeratorOutput"></div>
+        </div>
+        <div class="criterion-c-final-ib-mark-panel" id="criterionCModeratorFinalIbMarkWrap" hidden>
+          <p class="criterion-c-final-ib-mark-panel__label">Final IB mark (Criterion C)</p>
+          <p class="criterion-c-final-ib-mark-panel__value" id="criterionCModeratorFinalIbMarkNum">—</p>
+        </div>
+        <button type="button" class="btn ghost small" id="criterionCCopyModeratorBtn">Copy step 3 (JSON)</button>
+      </section>
+
+      <footer class="footer">
+        <p>
+          <a href="index.html">← Return to dashboard</a>
+        </p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

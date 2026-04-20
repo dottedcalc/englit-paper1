@@ -1,0 +1,18 @@
+{
+  "name": "ib-paper1-analyzer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "split": "node scripts/split-to-parts.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.2.5"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.4",
+    "jspdf": "^2.5.2"
+  }
+}
