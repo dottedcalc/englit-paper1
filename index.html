@@ -43,8 +43,8 @@
             inaccuracy of scores shown here.
           </li>
           <li>
-            You must supply your own <strong>Google Gemini API key</strong> and <strong>choose a Gemini model</strong>
-            in the section below. API usage and charges are billed by Google (or your API provider) to your account.
+            You must supply your own <strong>API key</strong> and <strong>choose a supported model</strong> in the
+            section below. API usage and charges are billed by the selected provider to your account.
             <strong>Different models will change scoring:</strong> more advanced, sophisticated models tend to produce
             more consistent, accurate judgments than smaller or lighter models, though no model guarantees a match to an
             official IB mark.
@@ -54,8 +54,9 @@
             criterion results are kept <strong>only in this browser</strong> (e.g. localStorage); they are
             <strong>not</strong> uploaded to or stored on this site’s servers. Model responses are <strong>not</strong>
             used to train any model owned or operated by the developer. By using the tool you <strong>consent</strong>
-            to sending your inputs (and prompts built from them) to <strong>Google’s Gemini API</strong> under
-            Google’s terms and privacy policy.
+            to sending your inputs (and prompts built from them) to the selected model provider, such as
+            <strong>Google’s Gemini API</strong> or <strong>Anthropic’s Claude API</strong>, under that provider’s
+            terms and privacy policy.
           </li>
           <li>
             <strong>Do not refresh</strong> the page while <strong>grading</strong> or during an <strong>active
@@ -63,23 +64,19 @@
             <strong>persist state in this browser</strong>, a refresh or navigation is <strong>not</strong> guaranteed
             to preserve your work.
           </li>
-          <li>
-            This website is governed by <strong>Chinese law</strong> (the laws of the People’s Republic of China).
-            Any dispute arising from or relating to this website or these terms shall be resolved in
-            <strong>that jurisdiction</strong> (the PRC).
-          </li>
         </ol>
       </section>
 
       <section class="panel credentials-panel">
-        <h2 class="panel-title">Gemini API</h2>
+        <h2 class="panel-title">Model API</h2>
         <p class="hint">
-          Requests use the
+          Gemini selections use Google's
           <a href="https://ai.google.dev/gemini-api/docs" target="_blank" rel="noopener noreferrer">Gemini API</a>
-          <code>generateContent</code> endpoint with the model you select (each choice maps to Google's official
-          <a href="https://ai.google.dev/gemini-api/docs/models" target="_blank" rel="noopener noreferrer">model id</a>
-          in the request). Your key and model choice are stored in this browser (localStorage). See the Terms of
-          service above for liability.
+          <code>generateContent</code> endpoint, while Claude selections use Anthropic's
+          <a href="https://docs.anthropic.com/en/api/messages" target="_blank" rel="noopener noreferrer"
+            >Messages API</a
+          >. Each choice maps to the provider's official model id in the request. Your key and model choice are stored
+          in this browser (localStorage). See the Terms of service above for liability.
         </p>
         <label class="field">
           <span class="label-text">API key</span>
@@ -88,7 +85,7 @@
             id="apiKey"
             name="apiKey"
             autocomplete="off"
-            placeholder="Paste your Google AI Studio / Gemini API key"
+            placeholder="Paste your Gemini or Anthropic API key"
           />
         </label>
         <label class="field">
@@ -98,6 +95,8 @@
             <option value="gemini-3.1-flash-lite-preview" data-tier="lite">Gemini 3.1 Flash-Lite (preview)</option>
             <option value="gemini-3-flash-preview" data-tier="flash">Gemini 3 Flash (preview)</option>
             <option value="gemini-3.1-pro-preview" data-tier="pro">Gemini 3.1 Pro (preview)</option>
+            <option value="claude-opus-4-7" data-tier="anthropic">Claude Opus 4.7 (Anthropic)</option>
+            <option value="claude-opus-4-6-buzz7" data-tier="anthropic-proxy">Claude Opus 4.6 (buzz7 proxy)</option>
           </select>
           <p class="model-tier-note model-tier-note--lite" id="modelTierNote" aria-live="polite">
             <strong class="model-tier-note__lead"></strong><span class="model-tier-note__rest"></span>
@@ -109,7 +108,8 @@
             are not free-tier defaults. <strong>Quotas (indicative):</strong> Gemma 4 — about
             <strong>1500 requests per day (RPD)</strong>, generally high availability. Flash-Lite — about
             <strong>500 RPD</strong>; you may occasionally get <strong>503 Unavailable</strong> when the service is
-            at capacity.
+            at capacity. <strong>Claude Opus 4.7</strong> uses Anthropic's billed Messages API instead of Google's free
+            tier.
           </p>
         </label>
       </section>
@@ -154,189 +154,90 @@
       <section class="panel criteria-board" aria-labelledby="criteriaBoardTitle">
         <h2 class="panel-title" id="criteriaBoardTitle">Criteria</h2>
         <p class="criteria-board__hint">
-          Paste the source passage and your response, then use <strong>Classify paragraph or essay</strong> before running
-          any criterion. When you are done with this session, use <strong>Clear all</strong> to reset inputs, scores, and
-          classification so you can start fresh.
+          Paste the source passage and your response above, then click <strong>Run analysis</strong>.
+          Use <strong>Clear all</strong> to reset inputs and scores for a new session.
         </p>
-        <div class="paragraph-format-gate" id="paragraphFormatGate">
-          <button type="button" class="btn primary paragraph-format-gate__btn" id="classifyParagraphEssayBtn">
-            <span class="classify-paragraph-essay__label">Classify paragraph or essay</span>
+
+        <div class="criteria-actions">
+          <button type="button" class="btn primary" id="runAnalysisBtn">
+            <span id="runAnalysisBtnLabel">Run analysis</span>
+            <span class="btn-spinner" id="runAnalysisSpinner" hidden aria-hidden="true"></span>
           </button>
-          <div
-            class="paragraph-format-label-wrap"
-            id="paragraphFormatLabelWrap"
-            hidden
-            aria-live="polite"
-          >
-            <p class="paragraph-format-label" id="paragraphFormatLabel"></p>
-            <p class="paragraph-format-rationale" id="paragraphFormatRationale" hidden></p>
+          <button type="button" class="btn accent" id="scoreBtn" hidden disabled>
+            <span id="scoreBtnLabel">Score A–D</span>
+            <span class="btn-spinner" id="scoreBtnSpinner" hidden aria-hidden="true"></span>
+          </button>
+          <button type="button" class="btn ghost" id="viewDetailsBtn" hidden>View details</button>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap" hidden>
+          <p class="progress-status" id="progressStatus" aria-live="polite"></p>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="progressTrack">
+            <div class="progress-fill" id="progressFill"></div>
           </div>
         </div>
+
+        <div class="reading-panel" id="readingPanel" hidden>
+          <div class="reading-panel__col reading-panel__col--text">
+            <h3 class="reading-panel__col-title">Student text</h3>
+            <div class="reading-panel__text" id="readingPanelText"></div>
+          </div>
+          <div class="reading-panel__col reading-panel__col--notes">
+            <h3 class="reading-panel__col-title">Reading notes</h3>
+            <div class="reading-panel__notes-content" id="readingPanelNotes">
+              <p class="reading-panel__notes-empty">Notes will appear as the AI reads each chunk…</p>
+            </div>
+          </div>
+          <div class="reading-panel__col reading-panel__col--overall">
+            <h3 class="reading-panel__col-title">Holistic impression</h3>
+            <div class="reading-panel__notes-content" id="readingPanelOverall">
+              <p class="reading-panel__notes-empty">Builds as evidence accumulates…</p>
+            </div>
+          </div>
+        </div>
+
         <div class="criteria-grid">
-          <div
-            class="criterion-tile criterion-tile--a criterion-tile--active"
-            id="criterionATile"
-          >
+          <div class="criterion-tile criterion-tile--a" id="criterionATile">
             <p class="criterion-tile__title">A: Knowledge and Understanding</p>
             <div class="criterion-tile__middle">
-              <div
-                class="criterion-tile__score-line"
-                id="criterionATileScoreLine"
-                hidden
-                aria-live="polite"
-              >
-                <span class="criterion-tile__score-num" id="criterionATileScoreNum"></span><span class="criterion-tile__score-suffix"> / 5</span>
+              <div class="criterion-tile__score-line" id="criterionATileScoreLine" hidden aria-live="polite">
+                <span class="criterion-tile__score-num" id="criterionATileScoreNum"></span
+                ><span class="criterion-tile__score-suffix"> / 5</span>
               </div>
-              <p class="criterion-tile__score-caption" id="criterionATileScoreCaption" hidden>
-                Criterion A Moderated Mark
-              </p>
-              <ul
-                class="criterion-tile__per-para-scores"
-                id="criterionATilePerParaScores"
-                hidden
-                aria-label="Scores per body paragraph"
-              ></ul>
-            </div>
-            <div class="criterion-tile__actions">
-              <button type="button" class="btn primary criterion-tile__run" id="criterionATileRun">
-                <span class="criterion-tile__btn-label">Run Criterion A</span>
-                <span
-                  class="btn-spinner criterion-tile__spinner"
-                  id="criterionATileSpinner"
-                  hidden
-                  aria-hidden="true"
-                ></span>
-              </button>
-              <a
-                class="btn ghost criterion-tile__detail"
-                id="criterionATileDetailLink"
-                href="criterion-a-detail.html"
-                hidden
-                >See detail</a
-              >
+              <p class="criterion-tile__score-caption" id="criterionATileScoreCaption" hidden>Moderated mark</p>
             </div>
           </div>
 
-          <div
-            class="criterion-tile criterion-tile--b criterion-tile--active criterion-tile--b-active"
-            id="criterionBTile"
-          >
+          <div class="criterion-tile criterion-tile--b" id="criterionBTile">
             <p class="criterion-tile__title">B: Analysis and Evaluation</p>
             <div class="criterion-tile__middle">
-              <div
-                class="criterion-tile__score-line"
-                id="criterionBTileScoreLine"
-                hidden
-                aria-live="polite"
-              >
+              <div class="criterion-tile__score-line" id="criterionBTileScoreLine" hidden aria-live="polite">
                 <span class="criterion-tile__score-num" id="criterionBTileScoreNum"></span
                 ><span class="criterion-tile__score-suffix"> / 5</span>
               </div>
-              <p class="criterion-tile__score-caption" id="criterionBTileScoreCaption" hidden>
-                Criterion B Moderated Mark
-              </p>
-              <ul
-                class="criterion-tile__per-para-scores"
-                id="criterionBTilePerParaScores"
-                hidden
-                aria-label="Scores per body paragraph"
-              ></ul>
-            </div>
-            <div class="criterion-tile__actions">
-              <button type="button" class="btn primary criterion-tile__run" id="criterionBTileRun">
-                <span class="criterion-tile__btn-label">Run Criterion B</span>
-                <span
-                  class="btn-spinner criterion-tile__spinner"
-                  id="criterionBTileSpinner"
-                  hidden
-                  aria-hidden="true"
-                ></span>
-              </button>
-              <a
-                class="btn ghost criterion-tile__detail"
-                id="criterionBTileDetailLink"
-                href="criterion-b-detail.html"
-                hidden
-                >See detail</a
-              >
+              <p class="criterion-tile__score-caption" id="criterionBTileScoreCaption" hidden>Moderated mark</p>
             </div>
           </div>
 
-          <div
-            class="criterion-tile criterion-tile--c criterion-tile--active criterion-tile--c-active"
-            id="criterionCTile"
-          >
+          <div class="criterion-tile criterion-tile--c" id="criterionCTile">
             <p class="criterion-tile__title">C: Focus, Organization &amp; Development</p>
             <div class="criterion-tile__middle">
-              <div
-                class="criterion-tile__score-line"
-                id="criterionCTileFinalLine"
-                hidden
-                aria-live="polite"
-              >
+              <div class="criterion-tile__score-line" id="criterionCTileFinalLine" hidden aria-live="polite">
                 <span class="criterion-tile__score-num" id="criterionCTileFinalNum"></span
                 ><span class="criterion-tile__score-suffix"> / 5</span>
               </div>
-              <p class="criterion-tile__score-caption" id="criterionCTileFinalCaption" hidden>
-                Criterion C Moderated Mark
-              </p>
-            </div>
-            <div class="criterion-tile__actions">
-              <button type="button" class="btn primary criterion-tile__run" id="criterionCTileRun">
-                <span class="criterion-tile__btn-label">Run Criterion C</span>
-                <span
-                  class="btn-spinner criterion-tile__spinner"
-                  id="criterionCTileSpinner"
-                  hidden
-                  aria-hidden="true"
-                ></span>
-              </button>
-              <a
-                class="btn ghost criterion-tile__detail"
-                id="criterionCTileDetailLink"
-                href="criterion-c-detail.html"
-                hidden
-                >See detail</a
-              >
+              <p class="criterion-tile__score-caption" id="criterionCTileFinalCaption" hidden>Moderated mark</p>
             </div>
           </div>
 
-          <div
-            class="criterion-tile criterion-tile--d criterion-tile--active criterion-tile--d-active"
-            id="criterionDTile"
-          >
+          <div class="criterion-tile criterion-tile--d" id="criterionDTile">
             <p class="criterion-tile__title">D: Language</p>
             <div class="criterion-tile__middle">
-              <div
-                class="criterion-tile__score-line"
-                id="criterionDTileScoreLineFinal"
-                hidden
-                aria-live="polite"
-              >
+              <div class="criterion-tile__score-line" id="criterionDTileScoreLineFinal" hidden aria-live="polite">
                 <span class="criterion-tile__score-num" id="criterionDTileScoreNumFinal"></span
                 ><span class="criterion-tile__score-suffix"> / 5</span>
               </div>
-              <p class="criterion-tile__score-caption" id="criterionDTileScoreCaptionFinal" hidden>
-                Criterion D Moderated Mark
-              </p>
-            </div>
-            <div class="criterion-tile__actions">
-              <button type="button" class="btn primary criterion-tile__run" id="criterionDTileRun">
-                <span class="criterion-tile__btn-label">Run Criterion D</span>
-                <span
-                  class="btn-spinner criterion-tile__spinner"
-                  id="criterionDTileSpinner"
-                  hidden
-                  aria-hidden="true"
-                ></span>
-              </button>
-              <a
-                class="btn ghost criterion-tile__detail"
-                id="criterionDTileDetailLink"
-                href="criterion-d-detail.html"
-                hidden
-                >See detail</a
-              >
+              <p class="criterion-tile__score-caption" id="criterionDTileScoreCaptionFinal" hidden>Moderated mark</p>
             </div>
           </div>
         </div>
@@ -406,6 +307,7 @@
           <p id="gradingProgressCriterion" class="grading-progress-card__criterion"></p>
           <p id="gradingProgressStep" class="grading-progress-card__step"></p>
           <p id="gradingProgressCount" class="grading-progress-card__count"></p>
+          <p id="gradingProgressEta" class="grading-progress-card__eta"></p>
           <div class="grading-progress-bar" aria-hidden="true">
             <div id="gradingProgressBarFill" class="grading-progress-bar__fill"></div>
           </div>
@@ -415,7 +317,10 @@
             role="alert"
             hidden
           ></p>
-          <p class="grading-progress-card__hint">Grading cannot be cancelled from this screen. Please wait.</p>
+          <p class="grading-progress-card__hint">
+            ETA depends on your internet connection and Gemini response time. Grading cannot be cancelled from this screen.
+            Please wait.
+          </p>
         </div>
       </div>
 

@@ -4,19 +4,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Concatenation order — each slice is one functional area of the former monolith. */
 const PART_FILES = [
-  "criteria-a-b-config-and-prompts.js",
-  "criterion-c-gemini-schemas.js",
-  "criterion-d-schemas-prompts-and-highlights.js",
-  "criterion-c-messages-scoring-and-highlighting.js",
-  "criterion-c-detail-views-and-run.js",
-  "criterion-d-pipeline-dashboard-and-bundles.js",
-  "shell-dom-criterion-ab-ui.js",
-  "paragraph-essay-classifier.js",
-  "grading-preflight-and-progress-ui.js",
-  "gemini-client-criteria-runs-and-boot.js",
-  "ib-full-report-pdf.js",
+  "client.js",  // API key storage + callApi (Gemini + Claude)
+  "app.js",     // classifier, criterion stubs, moderation, boot
 ];
 
 function ibPaperConcatPlugin() {
@@ -38,7 +28,7 @@ function ibPaperConcatPlugin() {
     load(id) {
       if (id !== RESOLVED_VIRTUAL_ID) return null;
       const chunks = PART_FILES.map((f) => readFileSync(join(partsDir, f), "utf8"));
-      return `import { jsPDF } from "jspdf";\n${chunks.join("\n")}`;
+      return chunks.join("\n");
     },
     handleHotUpdate(ctx) {
       const changed = ctx.file.replace(/\\/g, "/");
@@ -52,7 +42,8 @@ function ibPaperConcatPlugin() {
   };
 }
 
-/** GitHub project Pages: set VITE_BASE=/repo-name/ in CI (see .github/workflows). */
+// GitHub project page: set at build time, e.g. VITE_BASE=/ib-paper1-analyzer/ npm run build
+// (GitHub Actions workflow sets this from the repository name.) Local dev: omit → "/".
 const base = process.env.VITE_BASE?.trim() || "/";
 
 export default {
@@ -62,10 +53,6 @@ export default {
     rollupOptions: {
       input: {
         main: join(__dirname, "index.html"),
-        criterionA: join(__dirname, "criterion-a-detail.html"),
-        criterionB: join(__dirname, "criterion-b-detail.html"),
-        criterionC: join(__dirname, "criterion-c-detail.html"),
-        criterionD: join(__dirname, "criterion-d-detail.html"),
       },
     },
   },

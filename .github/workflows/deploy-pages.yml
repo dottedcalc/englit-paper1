@@ -1,8 +1,15 @@
+# Publishes only the Vite output in dist/ (minified JS/CSS + index.html) — no src/ on Pages.
+# Repo Settings → Pages → Build and deployment → Source: GitHub Actions.
+#
+# VITE_BASE (Vite public path):
+# - Project site: https://<owner>.github.io/<repo>/  →  base must be /<repo>/
+# - User/org site: https://<owner>.github.io/         →  repo is <owner>.github.io, base is /
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,7 +31,8 @@ jobs:
           cache: npm
       - name: Install and build
         env:
-          VITE_BASE: /${{ github.event.repository.name }}/
+          # User/org root site: repo "<owner>.github.io" → "/". Else project page → "/<repo>/".
+          VITE_BASE: ${{ github.event.repository.name == format('{0}.github.io', github.repository_owner) && '/' || format('/{0}/', github.event.repository.name) }}
         run: |
           npm ci
           npm run build
