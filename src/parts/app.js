@@ -153,7 +153,7 @@ const ANNOTATION_TYPES = [
   'A_STAR','A_CHECK','A_CROSS','A_QUESTION','A_CURVY','A_EXCLAIM',
   'B_STAR','B_CHECK','B_D','B_CROSS','B_QUESTION','B_NO_EVAL','B_UNSUP','B_BR',
   'C_STAR','C_CHECK','C_CROSS','C_QUESTION','C_SIGNPOST','C_S','C_DRIFT','C_ICP',
-  'D_SP','D_AWK','D_WC','D_GRA','D_CHECK','D_V','D_CROSS','D_R',
+  'D_SP','D_AWK','D_SD','D_WC','D_GRA','D_CHECK','D_V','D_CROSS','D_R',
 ];
 
 const READ_CHUNK_SCHEMA = {
@@ -398,6 +398,7 @@ C_ICP    ICP  Incomplete at paragraph or whole-essay level: paragraph cuts off m
 ── Criterion D (Language) ──
 D_SP       SP   Spelling error
 D_AWK      AWK  Awkward phrasing — feels off
+D_SD       SD   Sentence too dense to parse (or to read in one breath) — overloaded structure, heavy stacking, reader must re-read to unpack
 D_WC       WC   Imprecise word choice
 D_GRA      GRA  Minor mechanics/syntax error but meaning remains clear (not hard to understand)
 D_CHECK    ✓    Good word choice — precise and analytically effective
@@ -582,6 +583,7 @@ OTHER:
 HIGH / MID / LOW DEFINITIONS (use when setting "band"):
 Criterion A — Knowledge and Understanding
 - Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
+- **Position 1 / 2 / 3 within low (A):** The **deeper** into **low** the **work** **sits** (especially **position** **1** **vs** **2** **vs** **3**), the **worse** **literal** **reading** **can** **get** — not only **weak** **inference** or **scanty** **evidence**. **Lower** **positions** **within** **low** = **more** **frequent** and **more** **serious** **misreadings** of **even** **obvious** **literal** **meanings** of the **source** (what is **plainly** on the page). **Higher** **positions** **within** **low** are still **low**-**A** for **gaps** and **thinness**, but **basic** **literal** **grip** is **less** **often** **wrong** **throughout** than at the **bottom** of the **low** **band**.
 - High: strong understanding of the text; **many implications**, **some subtleties**, and **some insight** — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
 - Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
 - Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
@@ -596,17 +598,20 @@ Criterion B — Analysis and Interpretation
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
 - **What "effective organisation" means (C):** **Mirrors** and **sustains** an **argument** — a **line of reasoning** in which **paragraphs** and **moves** **build** a **thesis**-led **case**. It is **not** the same as **covering** the source text **in chronological** (or **sequential** / **blow-by-blow**) **order**; that pattern can be **narrative** **tracking** with **mediocre** **C** even when the order feels **tidy**.
-- **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**.
+- **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**. **When** **band** is **high —** **position 1** and **2** do **not** need **seamless** local **readability** in **every** **sentence**; they **do** need **effective** **structure** that **mirrors** the **line of** **reasoning**, **highly** **sustained** **focus**, and **very** **clear** **relations** (how **paragraphs** and **moves** **link** the **thesis** and **each** **other**). **Position 3** in **high** is **harder** to **earn** (a **higher** **bar**): expect **nearer**-**seamless** **coherence** and **tighter** **structural** **unity** for **most** of the **essay** — not **seamless** in **every** line, but **closer** to it than high **1** or **2**.
 - **High vs mid (contrast):** **High** requires **sustained** **effective** organisation and/or **strong, consistent focus** across the essay. The **mirror** of the **line of reasoning** (how paragraphs **track** the **thesis** and **build**) should be **clear**; the **span** of what the essay tries to do (scope) must **not** be **so broad** that the argument **thins** or **diffuses** — high is **disciplined** in **breadth** as well as **clarity**. **Mid** is **weaker** on all of this: it is only **generally** coherent, with **only** **some** **focus** and **local** **drifts** or **fragments**; the structure is **not** **extremely** **clear** or **tight**, but it remains **understandable** and **not** **confusing**; it does **not** show the **sustained** **effectiveness** and **clarity of mirror** of high, yet it is **not** **largely** **contradictory** (that leans **low**).
-- High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. (Does not require mechanical perfection in every line.)
+- High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. For **C**, **see** the **position** line for **how** **high 1/2** **differs** from **high 3**; **seamless** every sentence is **not** **required** for **high 1** or **2**.
 - Mid: **Generally** **coherent** **structure** and **some** **focus**, but with **notable** **drifts**, **loose** **joins**, or **fragmented** **moments**; organisation is **not** **extremely** **clear** or **tight** and **not** as **effectively** **sustained** as high, yet the reader can **follow**; **not** **confusing** and **not** **self-contradicting** in the way that characterises **low**. This is the **"some discipline, but patchy"** band.
 - Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**.
 
 Criterion D — Language
 - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
-- High: vocab very clear, effective, carefully chosen and PRECISE; HIGH degree of accuracy in grammar, vocabulary and construction; register and style effective and appropriate.
-- Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
-- Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and distracting at times.
+- **Position 1 / 2 / 3 (within high, mid, and low):** In **high** and **mid**, use **feeling** notes and a **global** read: **higher** **position** = **tighter** **syntax**, **more** **precise** **vocabulary**, **stronger** **register**, and a **pleasanter** **read** on **balance**. For **high** especially: **do not** be **timid** about **position** **2** or **3** when the **essay** **mostly** (≥ **~50%** of the text by space) **meets** the **high** **picture** and the **rest** is **not** a **sustained** **pull** **down** — **perfection** in **every** sentence is **not** **required** for **upper** **thirds** of **high**. **Within** **low:** **lower** **position** = **language** that **frequently** **gets** **in** **the** **way** and **impedes** **understanding**; **higher** **position** **within** **low** = still **below** **mid** and **distracting** / **clumsy**, but does **not** as **often** **block** the **reader** — **nuisance** and **lumps** more than **chronic** **unreadability**.
+- **High vs mid (D — contrast):** **High** — **Syntax** is **largely** **highly** **accurate**; **many** **uses** of **sharp**, **precise** **vocabulary**; **register** is **effective**; the prose is **pleasing** to read for an examiner. **Mid** — **Syntax** is **adequately** **fit**; **vocabulary** is **academic** but **not** **especially** **precise**; **register** is **appropriate**; the read is **not** **strongly** **distracting**, but it is **not** **pleasing** or **engaging** in the **high** **sense** — it is **workable**, **not** **polished** or **lively** on the **word** **level**.
+
+- High: **Syntax** **mostly** **highly** **accurate**; **many** **precise** **lexical** **choices**; **register** **effective**; **pleasing** to read. **(See** **position** **rule** **above** **—** **≥~50%** of the **essay** at this **level** can **support** **high** **2/3** when **warranted.)**
+- Mid: **Syntax** **adequately** **appropriate**; **vocabulary** **broadly** **academic** but **not** **precise**; **register** **appropriate**; **not** **highly** **distracting** to read, but **not** **pleasing** or **engaging** **either** — **competent** but **plain**.
+- Low: Stays **below** **mid**-level **control** (see **position** **rule**). **Worse** **(lower** **1)** end of the **band** — **vocabulary** / **syntax** / **register** **often** **get** **in** **the** **way**; **clarity** is **frequently** **impeded**. **Stronger** **(2** or **3)** end of **low** — still **distracting** and **lumpy** **D**-level work, but **impedes** **understanding** only **intermittently**; the **read** is **bumpy**, **not** **globally** **broken**.
 
 CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants **"shift"**: **"1"** or a band jump unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive **"1"**.
 
@@ -780,6 +785,7 @@ CONTEXT: This is a **~75-minute unseen literary analysis** (Paper 1 conditions).
 HIGH / MID / LOW DEFINITIONS (use these together with holistic band + position to choose the mark):
 Criterion A — Knowledge and Understanding
 - Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
+- **Position 1 / 2 / 3 within low (A):** The **deeper** into **low** the **work** **sits** (especially **position** **1** **vs** **2** **vs** **3**), the **worse** **literal** **reading** **can** **get** — not only **weak** **inference** or **scanty** **evidence**. **Lower** **positions** **within** **low** = **more** **frequent** and **more** **serious** **misreadings** of **even** **obvious** **literal** **meanings** of the **source** (what is **plainly** on the page). **Higher** **positions** **within** **low** are still **low**-**A** for **gaps** and **thinness**, but **basic** **literal** **grip** is **less** **often** **wrong** **throughout** than at the **bottom** of the **low** **band**.
 - High: strong understanding of the text; **many implications**, **some subtleties**, and **some insight** — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
 - Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
 - Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
@@ -794,17 +800,20 @@ Criterion B — Analysis and Interpretation
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
 - **What "effective organisation" means (C):** **Mirrors** and **sustains** an **argument** — a **line of reasoning** in which **paragraphs** and **moves** **build** a **thesis**-led **case**. It is **not** the same as **covering** the source text **in chronological** (or **sequential** / **blow-by-blow**) **order**; that pattern can be **narrative** **tracking** with **mediocre** **C** even when the order feels **tidy**.
-- **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**.
+- **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**. **When** **band** is **high —** **position 1** and **2** do **not** need **seamless** local **readability** in **every** **sentence**; they **do** need **effective** **structure** that **mirrors** the **line of** **reasoning**, **highly** **sustained** **focus**, and **very** **clear** **relations** (how **paragraphs** and **moves** **link** the **thesis** and **each** **other**). **Position 3** in **high** is **harder** to **earn** (a **higher** **bar**): expect **nearer**-**seamless** **coherence** and **tighter** **structural** **unity** for **most** of the **essay** — not **seamless** in **every** line, but **closer** to it than high **1** or **2**.
 - **High vs mid (contrast):** **High** requires **sustained** **effective** organisation and/or **strong, consistent focus** across the essay. The **mirror** of the **line of reasoning** (how paragraphs **track** the **thesis** and **build**) should be **clear**; the **span** of what the essay tries to do (scope) must **not** be **so broad** that the argument **thins** or **diffuses** — high is **disciplined** in **breadth** as well as **clarity**. **Mid** is **weaker** on all of this: it is only **generally** coherent, with **only** **some** **focus** and **local** **drifts** or **fragments**; the structure is **not** **extremely** **clear** or **tight**, but it remains **understandable** and **not** **confusing**; it does **not** show the **sustained** **effectiveness** and **clarity of mirror** of high, yet it is **not** **largely** **contradictory** (that leans **low**).
-- High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. (Does not require mechanical perfection in every line.)
+- High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. For **C**, **see** the **position** line for **how** **high 1/2** **differs** from **high 3**; **seamless** every sentence is **not** **required** for **high 1** or **2**.
 - Mid: **Generally** **coherent** **structure** and **some** **focus**, but with **notable** **drifts**, **loose** **joins**, or **fragmented** **moments**; organisation is **not** **extremely** **clear** or **tight** and **not** as **effectively** **sustained** as high, yet the reader can **follow**; **not** **confusing** and **not** **self-contradicting** in the way that characterises **low**. This is the **"some discipline, but patchy"** band.
 - Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**.
 
 Criterion D — Language
 - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
-- High: vocab very clear, effective, carefully chosen and PRECISE; HIGH degree of accuracy in grammar, vocabulary and construction; register and style effective and appropriate.
-- Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
-- Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and highly distracting at times.
+- **Position 1 / 2 / 3 (within high, mid, and low):** In **high** and **mid**, use **feeling** notes and a **global** read: **higher** **position** = **tighter** **syntax**, **more** **precise** **vocabulary**, **stronger** **register**, and a **pleasanter** **read** on **balance**. For **high** especially: **do not** be **timid** about **position** **2** or **3** when the **essay** **mostly** (≥ **~50%** of the text by space) **meets** the **high** **picture** and the **rest** is **not** a **sustained** **pull** **down** — **perfection** in **every** sentence is **not** **required** for **upper** **thirds** of **high**. **Within** **low:** **lower** **position** = **language** that **frequently** **gets** **in** **the** **way** and **impedes** **understanding**; **higher** **position** **within** **low** = still **below** **mid** and **distracting** / **clumsy**, but does **not** as **often** **block** the **reader** — **nuisance** and **lumps** more than **chronic** **unreadability**.
+- **High vs mid (D — contrast):** **High** — **Syntax** is **largely** **highly** **accurate**; **many** **uses** of **sharp**, **precise** **vocabulary**; **register** is **effective**; the prose is **pleasing** to read for an examiner. **Mid** — **Syntax** is **adequately** **fit**; **vocabulary** is **academic** but **not** **especially** **precise**; **register** is **appropriate**; the read is **not** **strongly** **distracting**, but it is **not** **pleasing** or **engaging** in the **high** **sense** — it is **workable**, **not** **polished** or **lively** on the **word** **level**.
+
+- High: **Syntax** **mostly** **highly** **accurate**; **many** **precise** **lexical** **choices**; **register** **effective**; **pleasing** to read. **(See** **position** **rule** **above** **—** **≥~50%** of the **essay** at this **level** can **support** **high** **2/3** when **warranted.)**
+- Mid: **Syntax** **adequately** **appropriate**; **vocabulary** **broadly** **academic** but **not** **precise**; **register** **appropriate**; **not** **highly** **distracting** to read, but **not** **pleasing** or **engaging** **either** — **competent** but **plain**.
+- Low: Stays **below** **mid**-level **control** (see **position** **rule**). **Worse** **(lower** **1)** end of the **band** — **vocabulary** / **syntax** / **register** **often** **get** **in** **the** **way**; **clarity** is **frequently** **impeded**. **Stronger** **(2** or **3)** end of **low** — still **distracting** and **lumpy** **D**-level work, but **impedes** **understanding** only **intermittently**; the **read** is **bumpy**, **not** **globally** **broken**.
 
 PRINCIPAL BENCHMARK — HOLISTIC IMPRESSION (mandatory anchor):
 For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. If **shift** is **"unknown"** (holistic or tier move not yet judgable), rely on **band**, **position**, and the **note**; do not treat **unknown** as a directional signal. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
@@ -1196,12 +1205,17 @@ function setTileScore(criterion, score) {
   if (capEl)  capEl.hidden = false;
 }
 
-/** Map raw total (0-20) to IB grade (1-7). */
+/**
+ * Map raw total (0–20) to IB grade (1–7).
+ * Band boundaries are relaxed compared with a stricter 18+ / 15+ / … split because
+ * this grader’s raw /20 total trends artificially low; the mapping re-centres overall grades.
+ * 7: 16–20 · 6: 13–15 · 5: 11–12 · 4: 8–10 · 3: 6–7 · 2: 3–5 · 1: 0–2
+ */
 function totalToIbGrade(total) {
-  if (total >= 18) return 7;
-  if (total >= 15) return 6;
-  if (total >= 12) return 5;
-  if (total >= 9)  return 4;
+  if (total >= 16) return 7;
+  if (total >= 13) return 6;
+  if (total >= 11) return 5;
+  if (total >= 8)  return 4;
   if (total >= 6)  return 3;
   if (total >= 3)  return 2;
   return 1;
@@ -1273,9 +1287,12 @@ function renderOverallFromScores() {
         </tr>
       </tfoot>
     </table>
+    <div class="ib-grade-block">
     <div class="ib-grade-badge-wrap">
       <span class="ib-grade-badge">IB Grade&nbsp;<strong>${ibGrade}</strong></span>
       <span class="ib-grade-total">${total}&thinsp;/&thinsp;20</span>
+    </div>
+    <p class="ib-grade-scale-note">1–7 uses a relaxed total→grade map for this stricter grader: 7 = 16–20, 6 = 13–15, 5 = 11–12, 4 = 8–10, 3 = 6–7, 2 = 3–5, 1 = 0–2.</p>
     </div>
     ${feedbackHtml ? `<div class="ib-feedback-section"><h4 class="ib-feedback-section__title">Examiner feedback</h4>${feedbackHtml}</div>` : ''}`;
 
@@ -1330,6 +1347,7 @@ const ANNOTATION_META = {
   C_ICP:      { label: 'ICP',  title: 'Criterion C — Incomplete: paragraph unfinished or fragmentary; or essay missing/truncated intro or conclusion (structural incompleteness, not just weak focus)' },
   D_SP:       { label: 'DSP',  title: 'Criterion D — Spelling error' },
   D_AWK:      { label: 'DAWK', title: 'Criterion D — Awkward phrasing' },
+  D_SD:       { label: 'DSD',  title: 'Criterion D — Sentence too dense to parse; hard to read in one breath' },
   D_WC:       { label: 'DWC',  title: 'Criterion D — Imprecise word choice' },
   D_GRA:      { label: 'DGRA', title: 'Criterion D — Minor mechanics/syntax error, but meaning remains clear' },
   D_CHECK:    { label: 'D✓',   title: 'Criterion D — Good word choice: precise and analytically effective' },
