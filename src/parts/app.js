@@ -598,11 +598,12 @@ Criterion B — Analysis and Interpretation
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
 - **What "effective organisation" means (C):** **Mirrors** and **sustains** an **argument** — a **line of reasoning** in which **paragraphs** and **moves** **build** a **thesis**-led **case**. It is **not** the same as **covering** the source text **in chronological** (or **sequential** / **blow-by-blow**) **order**; that pattern can be **narrative** **tracking** with **mediocre** **C** even when the order feels **tidy**.
+- **Reasoning map in notes (C — mid-upper / high-lower / high-mid, and position 1/2/3):** The **\`reasoning\`** list is a **key** **signal** for **borderline** **C**. A **comparatively** **compact** **tree** with **clear** **priority** — **fewer** top-**level** **(depth 0) nodes** and **deeper** **sub-nodes (depth 1/2) drilling into a move** **rather** **than** **adding** **new** **parallel** **moves** — **usually** **matches** **stronger** **overallImpression** **C** (tighter **argument** **discipline**). A **broad**, **flat** **map** (many **sibling** **moves** **at** **depth 0** with **only** **thin** **sub-points**) **suggests** **expansive** **sweep** over the **source** **instead** of **a** **tightly** **controlled** **line** of **thesis-led** **argument**; when **C** is **in** **doubt** (e.g. **mid** **position** **3** **vs** **high** **position** **1** **vs** **high** **position** **2**), **favour** **higher** **C** for **compact+deep** and **caution** for **expansive+shallow** unless the **prose** **itself** **is** **clearly** **superior** **on** **C**.
 - **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**. **When** **band** is **high —** **position 1** and **2** do **not** need **seamless** local **readability** in **every** **sentence**; they **do** need **effective** **structure** that **mirrors** the **line of** **reasoning**, **highly** **sustained** **focus**, and **very** **clear** **relations** (how **paragraphs** and **moves** **link** the **thesis** and **each** **other**). **Position 3** in **high** is **harder** to **earn** (a **higher** **bar**): expect **nearer**-**seamless** **coherence** and **tighter** **structural** **unity** for **most** of the **essay** — not **seamless** in **every** line, but **closer** to it than high **1** or **2**.
 - **High vs mid (contrast):** **High** requires **sustained** **effective** organisation and/or **strong, consistent focus** across the essay. The **mirror** of the **line of reasoning** (how paragraphs **track** the **thesis** and **build**) should be **clear**; the **span** of what the essay tries to do (scope) must **not** be **so broad** that the argument **thins** or **diffuses** — high is **disciplined** in **breadth** as well as **clarity**. **Mid** is **weaker** on all of this: it is only **generally** coherent, with **only** **some** **focus** and **local** **drifts** or **fragments**; the structure is **not** **extremely** **clear** or **tight**, but it remains **understandable** and **not** **confusing**; it does **not** show the **sustained** **effectiveness** and **clarity of mirror** of high, yet it is **not** **largely** **contradictory** (that leans **low**).
 - High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. For **C**, **see** the **position** line for **how** **high 1/2** **differs** from **high 3**; **seamless** every sentence is **not** **required** for **high 1** or **2**.
 - Mid: **Generally** **coherent** **structure** and **some** **focus**, but with **notable** **drifts**, **loose** **joins**, or **fragmented** **moments**; organisation is **not** **extremely** **clear** or **tight** and **not** as **effectively** **sustained** as high, yet the reader can **follow**; **not** **confusing** and **not** **self-contradicting** in the way that characterises **low**. This is the **"some discipline, but patchy"** band.
-- Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**.
+- Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**. **Low** **position 1** or **2** (the **harsher** end of the **low** **band**): **warrant** only when **reader** **reasoning** and the **essay** together show **genuinely** **incoherent**, **confusing**, **contradictory**, or **stream**-**of**-**consciousness**-**level** **structure** — **not** for **broad** or **loose** but **still** **followable** **argument** (that usually **belongs** **higher** **in** **low** or **in** **mid**).
 
 Criterion D — Language
 - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
@@ -800,11 +801,12 @@ Criterion B — Analysis and Interpretation
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
 - **What "effective organisation" means (C):** **Mirrors** and **sustains** an **argument** — a **line of reasoning** in which **paragraphs** and **moves** **build** a **thesis**-led **case**. It is **not** the same as **covering** the source text **in chronological** (or **sequential** / **blow-by-blow**) **order**; that pattern can be **narrative** **tracking** with **mediocre** **C** even when the order feels **tidy**.
+- **Reasoning map in notes (C — mid-upper / high-lower / high-mid, and position 1/2/3):** The **\`reasoning\`** list is a **key** **signal** for **borderline** **C**. A **comparatively** **compact** **tree** with **clear** **priority** — **fewer** top-**level** **(depth 0) nodes** and **deeper** **sub-nodes (depth 1/2) drilling into a move** **rather** **than** **adding** **new** **parallel** **moves** — **usually** **matches** **stronger** **overallImpression** **C** (tighter **argument** **discipline**). A **broad**, **flat** **map** (many **sibling** **moves** **at** **depth 0** with **only** **thin** **sub-points**) **suggests** **expansive** **sweep** over the **source** **instead** of **a** **tightly** **controlled** **line** of **thesis-led** **argument**; when **C** is **in** **doubt** (e.g. **mid** **position** **3** **vs** **high** **position** **1** **vs** **high** **position** **2**), **favour** **higher** **C** for **compact+deep** and **caution** for **expansive+shallow** unless the **prose** **itself** **is** **clearly** **superior** **on** **C**.
 - **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**. **When** **band** is **high —** **position 1** and **2** do **not** need **seamless** local **readability** in **every** **sentence**; they **do** need **effective** **structure** that **mirrors** the **line of** **reasoning**, **highly** **sustained** **focus**, and **very** **clear** **relations** (how **paragraphs** and **moves** **link** the **thesis** and **each** **other**). **Position 3** in **high** is **harder** to **earn** (a **higher** **bar**): expect **nearer**-**seamless** **coherence** and **tighter** **structural** **unity** for **most** of the **essay** — not **seamless** in **every** line, but **closer** to it than high **1** or **2**.
 - **High vs mid (contrast):** **High** requires **sustained** **effective** organisation and/or **strong, consistent focus** across the essay. The **mirror** of the **line of reasoning** (how paragraphs **track** the **thesis** and **build**) should be **clear**; the **span** of what the essay tries to do (scope) must **not** be **so broad** that the argument **thins** or **diffuses** — high is **disciplined** in **breadth** as well as **clarity**. **Mid** is **weaker** on all of this: it is only **generally** coherent, with **only** **some** **focus** and **local** **drifts** or **fragments**; the structure is **not** **extremely** **clear** or **tight**, but it remains **understandable** and **not** **confusing**; it does **not** show the **sustained** **effectiveness** and **clarity of mirror** of high, yet it is **not** **largely** **contradictory** (that leans **low**).
 - High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. For **C**, **see** the **position** line for **how** **high 1/2** **differs** from **high 3**; **seamless** every sentence is **not** **required** for **high 1** or **2**.
 - Mid: **Generally** **coherent** **structure** and **some** **focus**, but with **notable** **drifts**, **loose** **joins**, or **fragmented** **moments**; organisation is **not** **extremely** **clear** or **tight** and **not** as **effectively** **sustained** as high, yet the reader can **follow**; **not** **confusing** and **not** **self-contradicting** in the way that characterises **low**. This is the **"some discipline, but patchy"** band.
-- Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**.
+- Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**. **Low** **position 1** or **2** (the **harsher** end of the **low** **band**): **warrant** only when **reader** **reasoning** and the **essay** together show **genuinely** **incoherent**, **confusing**, **contradictory**, or **stream**-**of**-**consciousness**-**level** **structure** — **not** for **broad** or **loose** but **still** **followable** **argument** (that usually **belongs** **higher** **in** **low** or **in** **mid**).
 
 Criterion D — Language
 - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
@@ -1079,7 +1081,46 @@ async function getReadingNotes(sourceText, studentText, callbacks = {}) {
   return { ...result, paraStarts: [...paraStartSet], fromCache: false };
 }
 
+/** Relaxed /20 → IB 1–7 (calibrated for stricter per-criterion marks). */
+const IB7_BOUNDARY_TABLE = [
+  { grade: 7, minTotal: 16, rangeLabel: '16–20' },
+  { grade: 6, minTotal: 13, rangeLabel: '13–15' },
+  { grade: 5, minTotal: 11, rangeLabel: '11–12' },
+  { grade: 4, minTotal: 8,  rangeLabel: '8–10' },
+  { grade: 3, minTotal: 6,  rangeLabel: '6–7' },
+  { grade: 2, minTotal: 3,  rangeLabel: '3–5' },
+  { grade: 1, minTotal: 0,  rangeLabel: '0–2' },
+];
 
+/**
+ * Map raw total (0–20) to IB grade (1–7). Bands are relaxed for this stricter
+ * per-criterion grader. (See IB7_BOUNDARY_TABLE.)
+ */
+function totalToIbGrade(total) {
+  for (const row of IB7_BOUNDARY_TABLE) {
+    if (total >= row.minTotal) return row.grade;
+  }
+  return 1;
+}
+
+function renderIb7BoundaryTableHtml(achievedGrade) {
+  const body = IB7_BOUNDARY_TABLE.map(
+    (row) => `
+    <tr class="ib-ib7-table__row${row.grade === achievedGrade ? ' ib-ib7-table__row--current' : ''}" data-ib-grade="${row.grade}"${row.grade === achievedGrade ? ' aria-current="true"' : ''}>
+      <th scope="row" class="ib-ib7-table__grade">IB ${row.grade}</th>
+      <td class="ib-ib7-table__range">${row.rangeLabel}</td>
+    </tr>`,
+  ).join('');
+  return `
+    <div class="ib-ib7-table-wrap" role="group" aria-label="IB overall grade from total out of 20 (this grader)">
+      <h4 class="ib-ib7-table__title">IB grade (1–7) from total /20</h4>
+      <table class="ib-ib7-table">
+        <caption class="ib-ib7-table__caption">Band boundaries; your result row is highlighted.</caption>
+        <thead><tr><th scope="col">Grade</th><th scope="col">Total (of 20)</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // OVERALL IB MODERATION
@@ -1087,13 +1128,17 @@ async function getReadingNotes(sourceText, studentText, callbacks = {}) {
 
 async function runOverallModeration(scores) {
   const { A, B, C, D } = scores;
+  const preTotal   = (Number(A) + Number(B) + Number(C) + Number(D)) || 0;
+  const preIbGrade = totalToIbGrade(Math.max(0, Math.min(20, preTotal)));
+  // One line for the model’s arithmetic only — the app renders the full band table in the UI.
+  const bandRef = IB7_BOUNDARY_TABLE.map((r) => `${r.grade}:${r.rangeLabel}`).join(', ');
 
   const system = `You are a senior IB English A Paper 1 chief moderator.
 You have received criterion marks from an AI examiner. Your job:
 1. Check that the four criterion marks are internally consistent.
-2. Apply any moderation if marks seem inconsistent with each other.
-3. Calculate the total (A + B + C + D, out of 20).
-4. Give a brief holistic comment (3–5 sentences) on what this score profile means.
+2. Apply any moderation if marks seem **inconsistent** with each other.
+3. Calculate the final total (A + B + C + D, out of 20) and the IB overall **1–7** using the **relaxed** mapping given in the user message (stricter per-criterion grader, so bands are relaxed in the app).
+4. In your \`comment\` (3–5 sentences): **holistic** **assessment** of the **profile** only. **Do** **not** list or reproduce the 1–7 band table, bullet band rows, or ranges — the **student** **app** **shows** that table and highlights the achieved band. You may refer briefly to the final total and IB 1–7 in prose if it helps, but not as a table.
 
 Return JSON:
 {
@@ -1102,10 +1147,15 @@ Return JSON:
   "moderatedC": <integer 0–5>,
   "moderatedD": <integer 0–5>,
   "total": <integer 0–20>,
-  "comment": "<3–5 sentence holistic assessment>"
+  "comment": "<3–5 sentence holistic comment only; no band table>"
 }`;
 
-  const user = `Criterion marks submitted:
+  const user = `Relaxed total→IB reference (for your calculations; **do** **not** copy into \`comment\`): ${bandRef}
+
+*Initial* total: ${preTotal} / 20 (IB ${preIbGrade} *before* any mark changes).
+---
+
+Criterion marks submitted:
 A (Knowledge & Understanding): ${A}/5
 B (Analysis & Evaluation): ${B}/5
 C (Focus, Organisation & Development): ${C}/5
@@ -1205,22 +1255,6 @@ function setTileScore(criterion, score) {
   if (capEl)  capEl.hidden = false;
 }
 
-/**
- * Map raw total (0–20) to IB grade (1–7).
- * Band boundaries are relaxed compared with a stricter 18+ / 15+ / … split because
- * this grader’s raw /20 total trends artificially low; the mapping re-centres overall grades.
- * 7: 16–20 · 6: 13–15 · 5: 11–12 · 4: 8–10 · 3: 6–7 · 2: 3–5 · 1: 0–2
- */
-function totalToIbGrade(total) {
-  if (total >= 16) return 7;
-  if (total >= 13) return 6;
-  if (total >= 11) return 5;
-  if (total >= 8)  return 4;
-  if (total >= 6)  return 3;
-  if (total >= 3)  return 2;
-  return 1;
-}
-
 function updateOverallPanel() {
   // No-op: overall is now rendered directly by renderOverallFromScores after scoring.
 }
@@ -1292,7 +1326,8 @@ function renderOverallFromScores() {
       <span class="ib-grade-badge">IB Grade&nbsp;<strong>${ibGrade}</strong></span>
       <span class="ib-grade-total">${total}&thinsp;/&thinsp;20</span>
     </div>
-    <p class="ib-grade-scale-note">1–7 uses a relaxed total→grade map for this stricter grader: 7 = 16–20, 6 = 13–15, 5 = 11–12, 4 = 8–10, 3 = 6–7, 2 = 3–5, 1 = 0–2.</p>
+    ${renderIb7BoundaryTableHtml(ibGrade)}
+    <p class="ib-grade-scale-note">1–7 uses a relaxed map from /20 to grade because this per-criterion grader is stricter; see the table above.</p>
     </div>
     ${feedbackHtml ? `<div class="ib-feedback-section"><h4 class="ib-feedback-section__title">Examiner feedback</h4>${feedbackHtml}</div>` : ''}`;
 
@@ -2325,6 +2360,18 @@ function boot() {
   // View details button (in HTML; shown after first reading pass)
   $('viewDetailsBtn')?.addEventListener('click', showDetailModal);
 
+  const tos = $('termsOfService');
+  if (tos?.tagName === 'DETAILS') {
+    const openTos = () => {
+      tos.open = true;
+    };
+    if (window.location.hash === '#termsOfService') {
+      openTos();
+    }
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash === '#termsOfService') openTos();
+    });
+  }
 }
 
 boot();

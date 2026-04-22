@@ -21,53 +21,58 @@
         </p>
       </header>
 
-      <section class="tos-panel" aria-labelledby="tosHeading">
-        <h2 id="tosHeading" class="tos-heading">Terms of service</h2>
-        <ol class="tos-list">
-          <li>
-            This tool <strong>only</strong> judges <strong>either</strong> an analysis paragraph <strong>or</strong> a
-            full analytical essay based on an <strong>unseen literary</strong> passage (<strong>text-only</strong>;
-            <strong>no</strong> multimedia). <strong>English A Language &amp; Literature</strong> uses different
-            expectations from Literature Paper&nbsp;1; this workflow is <strong>not</strong> claiming to match
-            Lang&nbsp;&amp; Lit standards. Scoring is <strong>referenced</strong> to <strong>IB English A
-            Paper&nbsp;1</strong> criteria. You may use it for other tests, but scores are <strong>not</strong>
-            norm-referenced to those examinations.
-          </li>
-          <li>
-            <strong>International Baccalaureate</strong> and <strong>IB</strong> are trademarks of the International
-            Baccalaureate Organization. This site and tool are <strong>not affiliated with, endorsed by, or sponsored
-            by</strong> the IBO or any IB school.
-          </li>
-          <li>
-            Essay grading is <strong>inherently subjective</strong>. We use a proprietary prompt and multi-step
-            workflow, but model outputs involve <strong>randomness</strong> and may differ from your teacher’s mark.
-            <strong>No refunds</strong> will be issued for disagreement with an instructor’s grade or for perceived
-            inaccuracy of scores shown here.
-          </li>
-          <li>
-            You must supply your own <strong>API key</strong> and <strong>choose a supported model</strong> in the
-            section below. API usage and charges are billed by the selected provider to your account.
-            <strong>Different models will change scoring:</strong> more advanced, sophisticated models tend to produce
-            more consistent, accurate judgments than smaller or lighter models, though no model guarantees a match to an
-            official IB mark.
-          </li>
-          <li>
-            Your <strong>API key</strong>, <strong>source text</strong>, <strong>paragraph</strong>, and saved
-            criterion results are kept <strong>only in this browser</strong> (e.g. localStorage); they are
-            <strong>not</strong> uploaded to or stored on this site’s servers. Model responses are <strong>not</strong>
-            used to train any model owned or operated by the developer. By using the tool you <strong>consent</strong>
-            to sending your inputs (and prompts built from them) to the selected model provider, such as
-            <strong>Google’s Gemini API</strong> or <strong>Anthropic’s Claude API</strong>, under that provider’s
-            terms and privacy policy.
-          </li>
-          <li>
-            <strong>Do not refresh</strong> the page while <strong>grading</strong> or during an <strong>active
-            session</strong>—you might <strong>lose progress</strong>. Although this tool tries to
-            <strong>persist state in this browser</strong>, a refresh or navigation is <strong>not</strong> guaranteed
-            to preserve your work.
-          </li>
-        </ol>
-      </section>
+      <details class="tos-panel" id="termsOfService">
+        <summary class="tos-summary">
+          Terms of service
+          <span class="tos-summary__hint" aria-hidden="true">(tap to expand)</span>
+        </summary>
+        <div class="tos-body">
+          <h2 class="sr-only" id="tosHeading">Terms of service</h2>
+          <ol class="tos-list" aria-labelledby="tosHeading">
+            <li>
+              This tool <strong>only</strong> judges a <strong>full</strong> analytical <strong>essay</strong> based on
+              an <strong>unseen literary</strong> passage (<strong>text-only</strong>; <strong>no</strong> multimedia).
+              <strong>English A Language &amp; Literature</strong> uses different expectations from Literature
+              Paper&nbsp;1; this workflow is <strong>not</strong> claiming to match Lang&nbsp;&amp; Lit standards. Scoring
+              is <strong>referenced</strong> to <strong>IB English A Paper&nbsp;1</strong> criteria. You may use it for
+              other tests, but scores are <strong>not</strong> norm-referenced to those examinations.
+            </li>
+            <li>
+              <strong>International Baccalaureate</strong> and <strong>IB</strong> are trademarks of the International
+              Baccalaureate Organization. This site and tool are <strong>not affiliated with, endorsed by, or sponsored
+              by</strong> the IBO or any IB school.
+            </li>
+            <li>
+              Essay grading is <strong>inherently subjective</strong>. We use a proprietary prompt and multi-step
+              workflow, but model outputs involve <strong>randomness</strong> and may differ from your teacher’s mark.
+              <strong>No refunds</strong> will be issued for disagreement with an instructor’s grade or for perceived
+              inaccuracy of scores shown here.
+            </li>
+            <li>
+              You must supply your own <strong>API key</strong> and <strong>choose a supported model</strong> in the
+              section below. API usage and charges are billed by the selected provider to your account.
+              <strong>Different models will change scoring:</strong> more advanced, sophisticated models tend to produce
+              more consistent, accurate judgments than smaller or lighter models, though no model guarantees a match to an
+              official IB mark.
+            </li>
+            <li>
+              Your <strong>API key</strong>, <strong>source text</strong>, <strong>student response</strong>, and saved
+              criterion results are kept <strong>only in this browser</strong> (e.g. localStorage); they are
+              <strong>not</strong> uploaded to or stored on this site’s servers. Model responses are <strong>not</strong>
+              used to train any model owned or operated by the developer. By using the tool you <strong>consent</strong>
+              to sending your inputs (and prompts built from them) to the selected model provider, such as
+              <strong>Google’s Gemini API</strong> or <strong>Anthropic’s Claude API</strong>, under that provider’s
+              terms and privacy policy.
+            </li>
+            <li>
+              <strong>Do not refresh</strong> the page while <strong>grading</strong> or during an <strong>active
+              session</strong>—you might <strong>lose progress</strong>. Although this tool tries to
+              <strong>persist state in this browser</strong>, a refresh or navigation is <strong>not</strong> guaranteed
+              to preserve your work.
+            </li>
+          </ol>
+        </div>
+      </details>
 
       <section class="panel credentials-panel">
         <h2 class="panel-title">Model API</h2>
@@ -77,8 +82,9 @@
           <code>generateContent</code> endpoint, while Claude selections use Anthropic's
           <a href="https://docs.anthropic.com/en/api/messages" target="_blank" rel="noopener noreferrer"
             >Messages API</a
-          >. Each choice maps to the provider's official model id in the request. Your key and model choice are stored
-          in this browser (localStorage). See the Terms of service above for liability.
+            >. Each choice maps to the provider's official model id in the request. Your key and model choice are stored
+            in this browser (localStorage). See the
+            <a href="#termsOfService">Terms of service</a> for liability.
         </p>
         <label class="field">
           <span class="label-text">API key</span>
@@ -138,7 +144,7 @@
           name="studentParagraph"
           rows="10"
           class="textarea-compact"
-          placeholder="Paste your Paper 1 analytical response (one paragraph or full essay)…"
+          placeholder="Paste your Paper 1 analytical response (full essay)…"
         ></textarea>
 
         <div class="essay-structure-preview" id="essayStructurePreview" hidden aria-live="polite"></div>
