@@ -391,7 +391,7 @@ C_CROSS    ✗  Contradiction with a prior claim or the thesis
 C_QUESTION ?  Focus is breaking down; stream-of-consciousness; main point is hard to follow. When evaluating C, consult your current reasoning notes — if the argument map shows the essay has already covered this territory or is wandering without clear direction, this annotation is appropriate.
 C_SIGNPOST →  Logical/argumentative transitions ("building on this", "by contrast") rather than just sequential ("also", "in addition")
 C_S        S  Analysis scattered — multiple unrelated points, no clear priority or connecting logic. Cross-check your reasoning map: if it shows several disconnected nodes in the same paragraph, C_S is likely appropriate.
-C_DRIFT    ≋  Drifts from thesis: this content or ordering no longer follows the thesis as stated in the introduction — the essay has wandered away from its own stated argument. Cross-check your reasoning map and the thesis field to judge whether this paragraph is still serving the essay's stated central argument.
+C_DRIFT    ≋  **Drift from the thesis's line of reasoning** — this paragraph/section does **not** follow the **argumentative path** the thesis sets up. Includes the case where the thesis **establishes a contrast, comparison, or sequence** of ideas, but the body **does not run that line**: paragraphs discuss aspects **individually** (e.g. one thing per paragraph) **without** the **contrasting / linked** development the intro promised, or the ordering no longer matches the logic announced. More broadly: content or order **veers** so it no longer **executes** the essay's own thesis. Cross-check the thesis field and your reasoning map.
 C_ICP    ICP  Incomplete at paragraph or whole-essay level: paragraph cuts off mid-thought, lacks a workable topic sentence or development, or reads as a fragment; at essay level — introduction or conclusion missing or so truncated that the response is structurally unfinished for Paper 1. Use when the problem is absence or structural truncation, not merely weak focus (use C? or C_S for that).
 
 ── Criterion D (Language) ──
@@ -1293,7 +1293,7 @@ const ANNOTATION_META = {
   C_QUESTION: { label: 'C?',   title: 'Criterion C — Focus breaking down; stream-of-consciousness; main point hard to follow' },
   C_SIGNPOST: { label: 'C→',   title: 'Criterion C — Logical/argumentative transition rather than sequential ("also", "in addition")' },
   C_S:        { label: 'CS',   title: 'Criterion C — Scattered: multiple unrelated points, no clear priority or connecting logic' },
-  C_DRIFT:    { label: 'C≋',   title: 'Criterion C — Drifts from thesis: content or order no longer follows the thesis as stated in the introduction' },
+  C_DRIFT:    { label: 'C≋',   title: 'Criterion C — Drifts from thesis line of reasoning (e.g. intro promises contrast/sequence; body treats points in isolation or veers from stated argument)' },
   C_ICP:      { label: 'ICP',  title: 'Criterion C — Incomplete: paragraph unfinished or fragmentary; or essay missing/truncated intro or conclusion (structural incompleteness, not just weak focus)' },
   D_SP:       { label: 'DSP',  title: 'Criterion D — Spelling error' },
   D_AWK:      { label: 'DAWK', title: 'Criterion D — Awkward phrasing' },
