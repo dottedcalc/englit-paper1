@@ -207,6 +207,12 @@ const READ_CHUNK_SCHEMA = {
   required: ['notes', 'annotations'],
 };
 
+/** Net rung on 9-point ladder: low1…low3, mid1…mid3, high1…high3. Used for holistic `shift` string enum. */
+const HOLISTIC_SHIFT_STRING_ENUM = [
+  'unknown',
+  ...Array.from({ length: 17 }, (_, i) => String(i - 8)),
+];
+
 const OI_BAND_OBJ_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -214,8 +220,8 @@ const OI_BAND_OBJ_SCHEMA = {
     position:   { type: 'INTEGER' },
     confidence: { type: 'STRING', enum: ['high', 'medium', 'low', 'unknown'] },
     note:       { type: 'STRING' },
-    /** String enum for Gemini (integer enums break API validation). "unknown" = cannot judge band move yet or holistic not formed. */
-    shift:      { type: 'STRING', enum: ['-1', '0', '1', 'unknown'] },
+    /** String enum (Gemini). Net rung change on 9-rung scale; app recalculates from band+position. */
+    shift:      { type: 'STRING', enum: HOLISTIC_SHIFT_STRING_ENUM },
   },
   required: ['band', 'position', 'confidence', 'note', 'shift'],
 };
@@ -474,7 +480,7 @@ function annotationsForHolisticPrompt(allAnnotations) {
   }));
 }
 
-/** low < mid < high for one net band step (overallImpression.shift). In examiner prompts, "tier" = in-band position 1–3, not high/mid/low. */
+/** low < mid < high. Used to map band + within-band position to a 9-rung linear index. */
 const HOLISTIC_BAND_RANK = { low: 0, mid: 1, high: 2 };
 
 /**
@@ -487,25 +493,32 @@ function holisticBandRank(band) {
 }
 
 /**
- * Set `shift` from prior vs new band (high/mid/low). In-band position (1–3) is ignored: same band → 0. ("Tier" in IB prompts = position within band, not the band name.)
- * First time band becomes known (prior unknown) → 0. New band unknown → unknown.
- * @returns {-1|0|1|'unknown'}
+ * 0 = low(1) … 8 = high(3) along low1→low2→low3→mid1→…→high3. Null if band/position not a valid rung.
  */
-function computeHolisticShiftFromBandChange(priorBand, newBand) {
-  const nb = (newBand == null || newBand === '') ? 'unknown' : String(newBand).trim().toLowerCase();
-  if (nb === 'unknown') return 'unknown';
-  const pb = (priorBand == null || priorBand === '') ? 'unknown' : String(priorBand).trim().toLowerCase();
-  if (pb === 'unknown') {
-    if (nb !== 'unknown') return 0; // first formation
-    return 'unknown';
+function holisticLinearTierIndex(band, position) {
+  const b = normalizeHolisticBand(band);
+  if (b === 'unknown') return null;
+  const r = holisticBandRank(b);
+  if (r == null) return null;
+  const p = normalizeHolisticPosition(position);
+  if (p < 1 || p > 3) return null;
+  return r * 3 + (p - 1);
+}
+
+/**
+ * Net rung change vs prior (high/mid/low × position 1–3). e.g. mid2→mid3 = +1; mid3→high1 = +1; low1→high3 = +8.
+ * First time we can place a rung from unknown/incomplete prior → 0. New placement unknown → "unknown".
+ * @returns {number|'unknown'}
+ */
+function computeHolisticShiftFromTierLadder(priorBand, priorPos, newBand, newPos) {
+  const nIdx = holisticLinearTierIndex(newBand, newPos);
+  if (nIdx == null) return 'unknown';
+  const pIdx = holisticLinearTierIndex(priorBand, priorPos);
+  if (pIdx == null) {
+    // First formation (no prior rung) or prior band without valid 1–3: baseline vs new
+    return 0;
   }
-  const rp = holisticBandRank(pb);
-  const rn = holisticBandRank(nb);
-  if (rp == null || rn == null) return 'unknown';
-  const d = rn - rp;
-  if (d === 0) return 0;
-  if (d > 0) return 1; // at least one band step up; schema uses single step
-  return -1;
+  return nIdx - pIdx;
 }
 
 /** Normalise to schema enum. */
@@ -537,22 +550,24 @@ function clampHolisticConfidenceForReadPct(c, readPct) {
   return c;
 }
 
-/** Store shift as string for JSON / UI. */
+/** Store shift as string for JSON / UI (net rung delta −8…+8, or “unknown”). */
 function stringifyHolisticShift(s) {
   if (s === 'unknown' || s === null || s === undefined) return 'unknown';
-  if (s === -1) return '-1';
-  if (s === 0) return '0';
-  if (s === 1) return '1';
+  if (typeof s === 'number' && Number.isFinite(s)) {
+    if (s === 0) return '0';
+    return String(s);
+  }
   const t = String(s).trim().toLowerCase();
-  if (t === '-1' || t === '−1') return '-1';
-  if (t === '0') return '0';
-  if (t === '1' || t === '+1') return '1';
   if (t === 'unknown' || t === 'unk') return 'unknown';
+  if (t === '0' || t === 'zero' || t === 'hold' || t === 'none') return '0';
+  if (/^[-+]?[0-9]+$/.test(t)) {
+    return String(parseInt(t, 10));
+  }
   return 'unknown';
 }
 
 /**
- * @returns {-1|0|1|'unknown'}
+ * @returns {number|'unknown'}  Net rung delta, or "unknown" for legacy empty when band unknown
  */
 function normalizeHolisticShift(raw, priorBand) {
   if (raw === null || raw === undefined || raw === '') {
@@ -561,22 +576,22 @@ function normalizeHolisticShift(raw, priorBand) {
   if (typeof raw === 'string') {
     const t = raw.trim().toLowerCase();
     if (t === 'unknown' || t === 'unk') return 'unknown';
-    if (t === '-1' || t === '−1' || t === 'minus_one' || t === 'm1') return -1;
     if (t === '0' || t === 'zero' || t === 'hold' || t === 'none') return 0;
-    if (t === '1' || t === '+1' || t === 'plus_one' || t === 'p1') return 1;
+    if (/^[-+]?[0-9]+$/.test(t)) {
+      return parseInt(t, 10);
+    }
   }
   const n = Number(raw);
   if (Number.isFinite(n)) {
     if (n === 0) return 0;
-    if (n > 0) return 1;
-    if (n < 0) return -1;
+    return n;
   }
   return priorBand === 'unknown' || priorBand == null ? 'unknown' : 0;
 }
 
 /**
- * Merges model holistic output; **recomputes** `shift` from **net** **band** change (low/mid/high). **"Tier"** in examiner language = in-band **position** 1–3, **not** the band.
- * Clamps `confidence` by read % (≤40% → low; <70% → not high). `shift` = net **band** change only; **not** modified by confidence in code. The prompt’s **vibe** scale is **judgment** only.
+ * Merges model holistic output; **recomputes** `shift` as net rung on the **9-rung** ladder (low1…low3 → mid1…mid3 → high1…high3) from prior vs new **band** + **position**.
+ * Clamps `confidence` by read % (≤40% → low; <70% → not high). `shift` is **not** modified by confidence in code. The prompt’s **vibe** scale is **judgment** only.
  * `readPct` = round(100 * chunksCompleted / totalChunks); omit only for no-op.
  */
 function mergeHolisticOverallImpression(prior, parsed, readPct) {
@@ -595,9 +610,14 @@ function mergeHolisticOverallImpression(prior, parsed, readPct) {
       normalizeHolisticConfidence(merged.confidence),
       pct,
     );
-    // Shift: **source of truth** = net **band** change vs **prior** snapshot, not the model’s shift string. (Tier = in-band position, elsewhere.)
-    const netBandShift = computeHolisticShiftFromBandChange(priorBand, merged.band);
-    merged.shift     = stringifyHolisticShift(netBandShift);
+    // Shift: **source of truth** = net **rung** on 9-rung ladder (low1…high3) vs **prior** snapshot, not the model’s shift string.
+    const netRungShift = computeHolisticShiftFromTierLadder(
+      priorBand,
+      priorEntry.position,
+      merged.band,
+      merged.position,
+    );
+    merged.shift = stringifyHolisticShift(netRungShift);
     out[k]         = merged;
   }
   return out;
@@ -628,24 +648,25 @@ This pass is scheduled after every TWO sequential reading chunks (and also after
 READING POSITION FOR THIS UPDATE: chunk ${chunkIndexEnd + 1} of ${totalChunks} completed (~${pct}% of the essay by chunk count). You are at or past the 20% threshold; **the app also applies confidence caps from this %** (see below).
 
 TERMINOLOGY (read first — this document uses IB-style wording):
-• **Band** = **high** / **mid** / **low** (the **three** **holistic** **quality** **levels** for the criterion). **"Shift"** in JSON = **one** **net** **step** between **bands** only (**"0"** if the **band** is **unchanged**).
-• **Tier** = **where** the work **sits** **within** a **band**: **"position"** **1** / **2** / **3** (lower / middle / upper **third** **against** that **band**’s **descriptors**). **Do** **not** use **"tier"** to **mean** **high** / **mid** / **low** — that is **always** **"band"** here. Adjusting **tier** **without** **changing** **band** does **not** change **"shift"** (it **stays** **"0"**); **"shift"** is **not** a **position** nudge.
+• **Band** = **high** / **mid** / **low** (the **three** **holistic** **quality** **levels** for the criterion).
+• **9-rung placement** = each criterion sits on **one** rung in this order: **low1 → low2 → low3 → mid1 → mid2 → mid3 → high1 → high2 → high3** (combine **"band"** with **"position"** 1/2/3). **"Shift"** in JSON = **signed** **net** **rung** **change** vs the **PRIOR** snapshot (e.g. **mid2→mid3** = **+1**; **mid3→high1** = **+1**; **low1→high3** = up to **+8** in one go if the evidence truly warrants that jump). The app **recomputes** **shift** from your **band**+**position** and **replaces** your string — still output a **plausible** **shift** for transparency.
+• **Tier** = **"position"** **1** / **2** / **3** (lower / middle / upper **third** **within** a **band**). **Do** **not** use **"tier"** to **mean** **high** / **mid** / **low** — that is always **"band"**.
 • **Confidence** = how **settled** you are on the **combination** (**band** + **tier** / **position**). It **rises** when **evidence** from **successive** **chunks** **stays** on a **similar** **level** — the **work** **keeps** **reading** as the **same** **band** and **roughly** the **same** **calibre** **within** that **band** (similar **tier**) for **enough** of the **essay** that the **label** is **no** **longer** **tentative**. It **decreases** (or you **hold** it) when **evidence** is **not** at a **stable** **level** — e.g. **drastic** **jumps** in how the work **reads** **for** **this** **criterion**, **consecutive** **net** **changes** in **band** (back-and-forth or repeated **re-banding**), or **inconsistent** **quality** **across** **chunks** so you **cannot** **treat** the **read** as **settled**; **hold** or **lower** **until** the **pattern** **clarifies**.
 
 Each criterion A–D must include:
   - "band": "high", "mid", "low", or "unknown" if too early
   - "position": integer 1–3 = **tier** **within** that **band** (lower / middle / upper **third**); if band is "unknown", position 0
   - "confidence": "high", "medium", "low", or "unknown" — follow **CONFIDENCE** (mandatory) below: how **settled** you are on **band** + **tier** (**position**), not raw essay “quality” in the abstract. **Overclaiming** **"high"** when little is read is wrong. Use the **vibe** **table** for **willingness** to **move** **placement** (**not** a number you count to).
-  - "shift": string, exactly **"-1"**, **"0"**, **"1"**, or **"unknown"** (see step 3) — **required**; must **match** the **net** **change** in **"band"** (high/mid/low) from the **PRIOR** snapshot (the app **re-normalises** from **bands**). **Same** **band** as before → **"0"** even if **tier** (**position** **1–3**) **changes**; use the JSON string **"-1"** (not unquoted -1). Do not encode shift only inside the "note" text.
+  - "shift": string: **"unknown"** or a **signed** **integer** from **"-8"** to **"8"** (see step 3) — **required**; must **align** with the **net** **rung** **change** (9-rung order above) from the **PRIOR** **band+position**; the app **recomputes** from your **band**+**position** and **replaces** this field. **First** time **placing** from **"unknown"** **band** **→** **"0"** when a valid rung appears. **Do** **not** put shift only in the "note" text.
   - "note": follow the four-step workflow below (prose only—**do not** append [SHIFT: …] tags to the note; **shift** is its own key)
 
 CONFIDENCE (mandatory; **~${pct}%** = READING POSITION, by **chunk** count):
 • **What confidence means:** how **convinced** you are of the **current** **band** + **tier** (**position**) **read**, per criterion. It is **not** a generic “good / bad” score.
 • **When to raise confidence** (say in the **note** when **useful**): when **new** **chunks** show the **work** **consistently** **stays** on a **similar** **level** for this **criterion** — **same** **band** (or a **clear** **emerging** **band**), **and** **quality** that **repeatedly** **fits** that **read**; **less** whiplash, **less** “maybe mid, maybe high.” **Stable** **evidence** → **creep** **confidence** **up** from **low** toward **medium** and, when **%** read and **pattern** **allow**, toward **high**.
-• **When to lower confidence** (say in the **note** when **useful**): when **evidence** is **not** at the **same** **level** **across** the **read** for this **criterion** — e.g. **drastic** **shifts** in how it **comes** **across**, or **consecutive** **net** **band** **moves** (repeated **re-banding** or **whipsawing**) that **unsettle** a **stable** **placement**; then **downgrade** (or **hold** **low**/**medium**) **until** **later** **chunks** **reveal** a **clearer** **line**.
-• **Vibe: rough likelihood of moving placement this pass (NOT a quota, cap, dice, or number you track):** On **low** **confidence** you are **around** **~50%** **(vibe)** to **change** **something** that **needs** **changing** — **band** **and/or** **tier** (**position** **1–3**), **and/or** the **thrust** of the **case** in the **note**. On **medium**, maybe **~25%** **(vibe)** to **orchestrate** a **net** **band** **change** (the **only** **thing** **"shift"** **counts**) **this** pass when **warranted**. On **high**, about **~10%** **(vibe)** for a **net** **band** **step** this pass — only when **the** **evidence** is **really** **strong**; you **lean** to **keeping** the **band** more than on low/medium, but you still **re-band** when the **cumulative** **essay** **clearly** **demands** it. **Percentages** = gut ballpark; judge as a **senior** **examiner** would.
+• **When to lower confidence** (say in the **note** when **useful**): when **evidence** is **not** at the **same** **level** **across** the **read** for this **criterion** — e.g. **drastic** **shifts** in how it **comes** **across**, or **consecutive** **net** **rung** **moves** (repeated **re-placement** or **whipsawing**) that **unsettle** a **stable** **placement**; then **downgrade** (or **hold** **low**/**medium**) **until** **later** **chunks** **reveal** a **clearer** **line**.
+• **Vibe: rough likelihood of moving rung this pass (NOT a quota, cap, dice, or number you track):** On **low** **confidence** you are **around** **~50%** **(vibe)** to **change** **something** that **needs** **changing** — **band** **and/or** **tier** (**position** **1–3**), **and/or** the **thrust** of the **case** in the **note**. On **medium**, maybe **~25%** **(vibe)** to **move** **at** **least** **one** **rung** on the **9-rung** **scale** **this** pass when **warranted** (the **"shift"** field **encodes** that **net** **rung** **delta**). On **high**, about **~10%** **(vibe)** for a **rung** **move** this pass — only when **the** **evidence** is **really** **strong**; you **lean** to **holding** **placement** more than on low/medium, but you still **re-place** when the **cumulative** **essay** **clearly** **demands** it. **Percentages** = gut ballpark; judge as a **senior** **examiner** would.
 • **Read-% caps (enforced in app):** If **≤40%** of the essay, **"confidence"** must be **"low"** (provisional by rule). If **<70%** and **>40%**, do **not** set **"high"** (so you **cannot** **claim** the **~10%**-style **"settled"** **stance** on **band**+**tier** before **enough** is read). If **≥70%**, **"high"** is **allowed** when you are **genuinely** **settled** on **band** + **tier**. **Match** your output to these caps.
-• **Tie to shift (conceptual):** the app **recomputes** **"shift"** from **"band"**; you choose **"band"** and **"position"** using **judgment** **guided** by the **vibe**; **"shift"** in JSON = **net** **band** **change** **only**. **Do** **not** invent **rigid** **micro-rules** that **override** **holistic** **judgment** — if a **re-band** is **warranted**, **do** it.
+• **Tie to shift (conceptual):** the app **recomputes** **"shift"** as **new** rung **minus** **prior** rung (9-rung order); you choose **"band"** and **"position"** using **judgment** **guided** by the **vibe**. **Do** **not** invent **rigid** **micro-rules** that **override** **holistic** **judgment** — if a **re-placement** is **warranted**, **do** it.
 
 WHEN "band" is **high** — **position 2 or 3** (middle or upper within high):
 • Reserve **position 2** and **position 3** for essays where **at least ~50% of the text** (judge by chunk coverage, body paragraphs, and/or word share) **sustainedly** shows **high-band** quality for that criterion. “Most of the essay” in practice means **≥ about half** of the response demonstrates high attributes — not a few brilliant paragraphs in an otherwise mid-level essay.
@@ -663,18 +684,18 @@ STEP 2 — ADD NEW OBSERVATIONS (this criterion only)
 • Add what the last two reading chunks (plus annotations and other notes) newly show for **this** criterion only: strengths, weaknesses, and **prevalence** (how widespread the pattern is in the essay so far).
 • Good and bad both belong here when evidence exists.
 
-STEP 3 — **shift** in JSON = **net** **band** **change** vs the **PRIOR** snapshot — must **match** the **real** **band** **step**; use the **CONFIDENCE** **vibe** to **self-calibrate** (see **CONFIDENCE**; not a **rigid** **rule** for **"0"**)
-• **First formation:** If the **prior** **band** is **"unknown"** and this pass is the **first** where you set **band** to **high** / **mid** / **low**, you **must** set **"shift"** to **"0"** (no prior **band**). **Do not** use **"1"** or **"-1"** on that pass. While **new** **band** stays **"unknown"**, keep **"shift"** **"unknown"**.
-• **Later passes** (prior **band** already **known**): **"shift"** = **net** **change** in **band** only (**low** < **mid** < **high**). **Same** **band** as before (only **tier** / **position** **1–3** may change) → **"0"**. One **band** up (e.g. mid→high) → **"1"**. One **band** down → **"-1"**. The app will **recompute** **shift** from your **prior** and **new** **bands**; **return** a **shift** string **consistent** with the **bands** you output.
-• **How** to **choose** the **new** **band** (and thus when **shift** is **0** vs **±1**): use the **vibe** **table** in **CONFIDENCE** with your **cumulative** read (prior note + new chunks + annotations). **Low** = **malleable**; **high** = **stiff** on **re-banding** unless the **case** is **strong** — but **no** **mechanical** **rule** that **forces** **"0"** for **isolated** or **minor** **spots**; if a **band** **change** is **warranted**, **do** it. **If** the **same** **band** **remains** **best** (you may still **nudge** **tier** = **position**), **"0"** **shift**; **if** a **single** **band** **step** is **best**, **"±1"** (see **one-step** **rule**).
-• **Anchor = THIS rung** (the **prior** **band+position** for this letter). Weigh new chunks + notes + annotations against that standard.
+STEP 3 — **shift** in JSON = **signed** **net** **rung** **change** on the **9-rung** order (low1…high3) **vs** the **PRIOR** **band+position**; the app **recomputes** it — **return** a value **consistent** with the **placements** you output. Use the **CONFIDENCE** **vibe** to **self-calibrate** (not a **rigid** **rule** for **"0"**).
+• **First formation:** If the **prior** **band** is **"unknown"** and this pass is the **first** where you set **valid** **band+position** (a **rung**), you **must** set **"shift"** to **"0"** (no **prior** **rung** to compare). While **new** **band** or **valid** **position** is still **missing**, keep **"shift"** **"unknown"** when you cannot name a rung.
+• **Later passes:** **shift** = **(new** **rung** **index)** **−** **(prior** **rung** **index)**. Examples: **mid2→mid3** = **+1**; **mid3→high1** = **+1**; **same** **rung** = **"0"**; **down** a **rung** = **"-1"** (or a **more** **negative** **integer** if you move **several** **rungs** down in one pass and the evidence justifies that).
+• **How** to **choose** the **new** **band**+**position** (and thus the **magnitude** of **shift**): use the **vibe** **table** in **CONFIDENCE** with your **cumulative** read. **Low** = **malleable**; **high** = **stiff** on **moving** **rungs** unless the **case** is **strong** — but **no** **mechanical** **rule** that **blocks** good **judgment** on **borderline** **placement**.
+• **Anchor = prior rung** for this letter. Weigh new chunks + notes + annotations against that **placement**.
 • If you cannot judge **with** the **%** read so far, keep **"unknown"** for **band** and **"unknown"** for **shift** (rare at **≥~20%**; prefer a **best** judgment when possible). After **~40%** read, **unknown** for **band** is **rare** unless the essay is **truly** **opaque**.
-• **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose. **"1"** = one **net** **band** **up**; **"-1"** = one **net** **band** **down**; **"0"** = same **band** as **before** (including first formation from **unknown**) or **insufficient** signal; **nudging** **tier** (**position**) **only** = **"0"** **for** **shift**.
-• **One band** **step** per pass by default: do not jump two **bands** in one go unless the evidence is **overwhelming**; if the **new** **band** is two steps away, the **app** will still cap **shift** to **"1"** or **"-1"** in one direction. Prefer **one** **clear** **step**.
+• **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose. The **"shift"** key carries the **rung** **delta**; the **app** is **authoritative** on the **value** (recomputed from **band**+**position**).
+• **One** **rung** **(or** **a** **small** **number** **of** **rungs)** **per** **pass** by default when **adjusting** **placement**; **huge** **jumps** **across** the **9-rung** **scale** are **rare** unless the **cumulative** **evidence** is **truly** **definitive** — the **app** will **recompute** the **exact** **integer**; **do** **not** **inflate** a **small** **refinement** into a **big** **jump** without the **case** for it.
 
 STEP 4 — ASSIGN / KEEP BANDS (unchanged logic except as driven by step 3)
 • Setting **band** and **position** from **unknown** is appropriate once **enough** has been read (this pass only runs at **≥20%**). The **~50%** / **~25%** / **~10%** **vibe** is your **self-check**, **not** a **quota** (see **CONFIDENCE**).
-• When **band** is **already** **known**, **revise** **band** and/or **tier** (**position**) when your **holistic** **judgment** **supports** it — **informed** by the **vibe** (low = **willing** to **move** **placement**; high = **rare** **net** **band** **steps** unless very convinced), **not** a **filter** that **blocks** good **judgment** (including band **boundary** cases as described).
+• When **band** is **already** **known**, **revise** **band** and/or **tier** (**position**) when your **holistic** **judgment** **supports** it — **informed** by the **vibe** (low = **willing** to **move** **placement**; high = **rare** **net** **rung** **moves** unless very convinced), **not** a **filter** that **blocks** good **judgment** (including band **boundary** cases as described).
 
 OTHER:
 • Holistic "note" fields do **not** count toward the reader's 350-word cap on thesis/reasoning/etc.
@@ -718,9 +739,9 @@ Criterion D — Language
 - Mid: **Syntax** **adequately** **appropriate**; **vocabulary** **broadly** **academic** but **not** **precise**; **register** **appropriate**; **not** **highly** **distracting** to read, but **not** **pleasing** or **engaging** **either** — **competent** but **plain**.
 - Low: Stays **below** **mid**-level **control** (see **position** **rule**). **Worse** **(lower** **1)** end of the **band** — **vocabulary** / **syntax** / **register** **often** **get** **in** **the** **way**; **clarity** is **frequently** **impeded**. **Stronger** **(2** or **3)** end of **low** — still **distracting** and **lumpy** **D**-level work, but **impedes** **understanding** only **intermittently**; the **read** is **bumpy**, **not** **globally** **broken**.
 
-CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants **"shift"**: **"1"** or a band jump unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive **"1"**.
+CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants a **large** **non-zero** **"shift"** (big **rung** **move**); a **small** **+1** or **hold** is possible when the **closing** **materially** **changes** the **read** of **placement** for that **criterion** — do not let a **polished** **but** **thin** **closing** alone **drive** a **multi-rung** **jump**.
 
-Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (string: **"-1"**, **"0"**, **"1"**, or **"unknown"** only), and **note** (string, no [SHIFT: …] suffix). The **app** will **recompute** **shift** from your **previous** and **new** **band** (net **band** **step** only; **tier** = **position**) and **clamp** **confidence** to the **%**-read **rules** — still output **fields** **as if** final. No markdown. No other keys.`;
+Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (string: **"unknown"** or **signed** **integer** **"-8"**…**"8"** as **in** the **API** **schema**), and **note** (string, no [SHIFT: …] suffix). The **app** will **recompute** **shift** from your **previous** and **new** **band+position** (**9-rung** **rung** **delta**) and **clamp** **confidence** to the **%**-read **rules** — still output **fields** **as** **if** final. No markdown. No other keys.`;
 }
 
 /**
@@ -927,7 +948,7 @@ Criterion D — Language
 - Low: Stays **below** **mid**-level **control** (see **position** **rule**). **Worse** **(lower** **1)** end of the **band** — **vocabulary** / **syntax** / **register** **often** **get** **in** **the** **way**; **clarity** is **frequently** **impeded**. **Stronger** **(2** or **3)** end of **low** — still **distracting** and **lumpy** **D**-level work, but **impedes** **understanding** only **intermittently**; the **read** is **bumpy**, **not** **globally** **broken**.
 
 PRINCIPAL BENCHMARK — HOLISTIC IMPRESSION (mandatory anchor):
-For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. If **shift** is **"unknown"** (holistic or band move not yet judgable), rely on **band**, **position**, and the **note**; do not treat **unknown** as a directional signal. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
+For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. If **shift** is **"unknown"** (holistic **rung** **change** not yet judgable), rely on **band**, **position**, and the **note**; do not treat **unknown** as a directional signal. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
 
 SECONDARY ADJUSTMENT — READING NOTES + ANNOTATIONS:
 Use **reasoning, concerns, feeling**, and **annotations** to **raise or lower** the mark **only when** there is a **clear, repeated pattern** that **does not fit** the holistic call (e.g. many more negative markers than the holistic note suggests, or sustained strengths the holistic note underplayed). Small local noise should not override holistic. When you adjust, say so plainly in the justification (without meta-phrases like "the overallImpression field").
@@ -1739,24 +1760,36 @@ function renderBandPositionBar(band, position) {
   return `<span class="rp-bandpos" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Within band: ${word} third, ${pos} of 3`)}">${segs}</span>`;
 }
 
-/** Holistic pass net *band* step vs prior snapshot (-1 / 0 / +1) or unknown — UI chip. */
+/**
+ * Holistic pass net *rung* change vs prior on the 9-rung scale (low1…high3) — UI chip.
+ * @param {string} band — current band (for normalising empty shift)
+ */
 function renderHolisticShiftChip(shift, band) {
   const s = normalizeHolisticShift(shift, band);
-  const label =
-    s === 'unknown' ? 'Shift: not determined yet (or net band move not judgable for this pass)' :
-    s === 1 ? 'Shift: up one band (e.g. mid→high) vs prior pass' :
-    s === -1 ? 'Shift: down one band (e.g. high→mid) vs prior pass' :
-    'Shift: hold (same band; tier = position 1–3 within band may still change)';
   if (s === 'unknown') {
+    const label = 'Shift: not determined yet (or placement not on the 9-rung scale for this pass)';
     return `<span class="rp-overall-shift rp-overall-shift--unk" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">?</span>`;
   }
-  if (s === 0) {
+  if (typeof s !== 'number' || !Number.isFinite(s)) {
+    const label = 'Shift: not determined';
+    return `<span class="rp-overall-shift rp-overall-shift--unk" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">?</span>`;
+  }
+  const n = s;
+  const label =
+    n === 0
+      ? 'Shift: 0 (same rung: band + within-band position unchanged vs prior pass)'
+      : `Shift: ${n > 0 ? '+' : '−'}${Math.abs(n)} on 9-rung scale (low1→low2→…→high3) vs prior pass`;
+  if (n === 0) {
     return `<span class="rp-overall-shift rp-overall-shift--0" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">0</span>`;
   }
-  if (s === 1) {
-    return `<span class="rp-overall-shift rp-overall-shift--p1" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">+1</span>`;
+  const text = n > 0 ? `+${n}` : `−${Math.abs(n)}`;
+  const al = `${n > 0 ? 'Plus' : 'Minus'} ${Math.abs(n)} on 9-rung scale vs prior pass`;
+  if (n > 0) {
+    const mod = n === 1 ? 'p1' : 'p-pos';
+    return `<span class="rp-overall-shift rp-overall-shift--${mod}" title="${escapeHtml(label)}" aria-label="${escapeHtml(al)}">${text}</span>`;
   }
-  return `<span class="rp-overall-shift rp-overall-shift--m1" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">−1</span>`;
+  const mod = n === -1 ? 'm1' : 'm-neg';
+  return `<span class="rp-overall-shift rp-overall-shift--${mod}" title="${escapeHtml(label)}" aria-label="${escapeHtml(al)}">${text}</span>`;
 }
 
 /** Render overallImpression into the dedicated right-hand box. */

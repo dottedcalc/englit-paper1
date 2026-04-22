@@ -3999,7 +3999,7 @@ textarea {
   font-style: italic;
 }
 
-/* Holistic pass shift (-1 / 0 / +1 / unknown) from JSON, shown next to position bar */
+/* Holistic pass shift (net rung delta on low1…high3 scale, or ?) from JSON, next to position bar */
 .rp-overall-shift {
   display: inline-flex;
   align-items: center;
@@ -4024,10 +4024,22 @@ textarea {
   background: #dcfce7;
   border-color: #86efac;
 }
+.rp-overall-shift--p-pos {
+  color: #14532d;
+  background: #bbf7d0;
+  border-color: #4ade80;
+  min-width: 1.6rem;
+}
 .rp-overall-shift--m1 {
   color: #991b1b;
   background: #fee2e2;
   border-color: #fca5a5;
+}
+.rp-overall-shift--m-neg {
+  color: #7f1d1d;
+  background: #fecaca;
+  border-color: #f87171;
+  min-width: 1.6rem;
 }
 .rp-overall-shift--unk {
   color: #6b7280;
