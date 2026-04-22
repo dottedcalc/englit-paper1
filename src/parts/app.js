@@ -214,7 +214,7 @@ const OI_BAND_OBJ_SCHEMA = {
     position:   { type: 'INTEGER' },
     confidence: { type: 'STRING', enum: ['high', 'medium', 'low', 'unknown'] },
     note:       { type: 'STRING' },
-    /** String enum for Gemini (integer enums break API validation). "unknown" = cannot judge tier move yet or holistic not formed. */
+    /** String enum for Gemini (integer enums break API validation). "unknown" = cannot judge band move yet or holistic not formed. */
     shift:      { type: 'STRING', enum: ['-1', '0', '1', 'unknown'] },
   },
   required: ['band', 'position', 'confidence', 'note', 'shift'],
@@ -328,7 +328,7 @@ Notes fields (update and return as "notes" in your response):
 • concerns — Short list of MACRO-level concerns about the essay as a whole — structural, argumentative, or interpretive issues that affect the overall quality across multiple paragraphs, not local slips or single-sentence observations. Each entry ≤12 words. Only add an entry when a pattern or essay-wide problem has become clear.
 • feeling — LOCAL impression from recent chunks only. Four fields — A, B, C, D — each a 1–2 sentence note on what the current and immediately preceding chunks show: what is working, what is not. Update freely each chunk. Leave "" if nothing observed yet for that criterion.
 
-• overallImpression — NOT part of this response. A separate dedicated pass (every two reading chunks, **only after ~15% of the essay** has been read) updates holistic bands, positions, confidence, and cumulative **shift** using your thesis/reasoning/feeling/etc., all annotations so far, and the prior holistic snapshot. Focus this call on chunk notes + annotations only.
+• overallImpression — NOT part of this response. A separate dedicated pass (every two reading chunks, **only after ≥20% of the essay** has been read) updates holistic bands, positions, confidence, and cumulative **shift** using your thesis/reasoning/feeling/etc., all annotations so far, and the prior holistic snapshot. Focus this call on chunk notes + annotations only.
 
 ESSAY STRUCTURE AWARENESS:
 Essays will have an introduction, body paragraphs, and a conclusion. Treat these differently in your reasoning:
@@ -378,7 +378,7 @@ A_EXCLAIM  !  Understands local meaning and implications but not the broader mea
 ── Criterion B (Stylistic Features) ──
 B_STAR     ★  Strong **evaluation of HOW** this authorial choice achieves its effect; **or** ties **several** authorial choices together to evaluate implications; **or** works at a **broader** authorial pattern (not a star for mere labelling, even if correct)
 B_CHECK    ✓  Identifies a technique and **describes the effect correctly** (accurate name + effect; may be shallow — **does not** require full "how" evaluation; that is B★ vs B∅)
-B_D        D  **Plot / description in place of analysis** — where **stylistic or authorial analysis is expected** (e.g. a body sentence that should unpack a device, mechanism, or effect), the student only **narrates, paraphrases, or summarises** with **no** analysis of how any feature shapes meaning or affects the reader — worse than B_NO_EVAL (∅), which at least gestures at effect. **Do not** mark every passing description: brief **summary or orientation at the end of a paragraph** (or similar closure) is often **acceptable** and **not** a D unless the whole **argumentative** move there was meant to be analytical.
+B_D        D  **Plot / description in place of analysis** — where **stylistic or authorial analysis is expected** (e.g. a body sentence that should unpack a device, mechanism, or effect), the student only **narrates, paraphrases, or summarises** the **literal** / **plot** with **no** feature→meaning or **no** effect — worse than B_NO_EVAL (∅), which at least **gestures** at effect. **"Description"** **≠** **no evaluation** in general: **B✓** requires **at least** **plausible** **technique** and **defensible** **effect**; **wrong** / **muddled** **labels** or **unjustified** / **incorrect** **effect** = **B✗** / **B?**, **not** **competent** B at that **spot**, **not** D. **D** = **wholly** **summary/narration** in **lieu** of **authorial** **analysis** at that spot. **Do not** mark every passing description: brief **summary or orientation at the end of a paragraph** (or similar closure) is often **acceptable** and **not** a D unless the whole **argumentative** move there was meant to be analytical.
 B_CROSS    ✗  Identifies a technique but the effect is described **contradictorily** or **incorrectly**; or device/label is **wrong**, **conflated**, or **applied to the wrong element**
 B_QUESTION ?  Connection between device and meaning is tenuous, unsupported, or simply asserted
 B_NO_EVAL  ∅  **How** the authorial choice achieves the effect is **not evaluated** (mechanism absent). **May be used on the same anchor as B_CHECK** (two annotations, same 3–8 word span): the student **correctly** names technique and effect, but does **not** explain how the choice produces that effect — use both **B_CHECK** and **B_NO_EVAL** in that case.
@@ -474,6 +474,83 @@ function annotationsForHolisticPrompt(allAnnotations) {
   }));
 }
 
+/** low < mid < high for one net band step (overallImpression.shift). In examiner prompts, "tier" = in-band position 1–3, not high/mid/low. */
+const HOLISTIC_BAND_RANK = { low: 0, mid: 1, high: 2 };
+
+/**
+ * @returns {number|null} null if a band is unknown/invalid
+ */
+function holisticBandRank(band) {
+  const b = (band == null || band === '') ? 'unknown' : String(band).trim().toLowerCase();
+  if (b in HOLISTIC_BAND_RANK) return HOLISTIC_BAND_RANK[b];
+  return null;
+}
+
+/**
+ * Set `shift` from prior vs new band (high/mid/low). In-band position (1–3) is ignored: same band → 0. ("Tier" in IB prompts = position within band, not the band name.)
+ * First time band becomes known (prior unknown) → 0. New band unknown → unknown.
+ * @returns {-1|0|1|'unknown'}
+ */
+function computeHolisticShiftFromBandChange(priorBand, newBand) {
+  const nb = (newBand == null || newBand === '') ? 'unknown' : String(newBand).trim().toLowerCase();
+  if (nb === 'unknown') return 'unknown';
+  const pb = (priorBand == null || priorBand === '') ? 'unknown' : String(priorBand).trim().toLowerCase();
+  if (pb === 'unknown') {
+    if (nb !== 'unknown') return 0; // first formation
+    return 'unknown';
+  }
+  const rp = holisticBandRank(pb);
+  const rn = holisticBandRank(nb);
+  if (rp == null || rn == null) return 'unknown';
+  const d = rn - rp;
+  if (d === 0) return 0;
+  if (d > 0) return 1; // at least one band step up; schema uses single step
+  return -1;
+}
+
+/** Normalise to schema enum. */
+function normalizeHolisticConfidence(raw) {
+  if (raw == null || raw === '') return 'unknown';
+  const t = String(raw).trim().toLowerCase();
+  if (t === 'high' || t === 'hi') return 'high';
+  if (t === 'medium' || t === 'med' || t === 'mid') return 'medium';
+  if (t === 'low' || t === 'lo') return 'low';
+  if (t === 'unknown' || t === 'unk') return 'unknown';
+  return 'unknown';
+}
+
+function normalizeHolisticBand(raw) {
+  if (raw == null || raw === '') return 'unknown';
+  const t = String(raw).trim().toLowerCase();
+  if (t === 'high' || t === 'mid' || t === 'low' || t === 'unknown') return t;
+  return 'unknown';
+}
+
+/**
+ * @param {string} c - normalized
+ * @param {number} readPct - 0–100, chunk-based % of essay read at this pass
+ */
+function clampHolisticConfidenceForReadPct(c, readPct) {
+  if (readPct == null || Number.isNaN(readPct)) return c;
+  if (readPct <= 40) return 'low';
+  if (readPct < 70 && c === 'high') return 'medium';
+  return c;
+}
+
+/** Store shift as string for JSON / UI. */
+function stringifyHolisticShift(s) {
+  if (s === 'unknown' || s === null || s === undefined) return 'unknown';
+  if (s === -1) return '-1';
+  if (s === 0) return '0';
+  if (s === 1) return '1';
+  const t = String(s).trim().toLowerCase();
+  if (t === '-1' || t === '−1') return '-1';
+  if (t === '0') return '0';
+  if (t === '1' || t === '+1') return '1';
+  if (t === 'unknown' || t === 'unk') return 'unknown';
+  return 'unknown';
+}
+
 /**
  * @returns {-1|0|1|'unknown'}
  */
@@ -497,21 +574,31 @@ function normalizeHolisticShift(raw, priorBand) {
   return priorBand === 'unknown' || priorBand == null ? 'unknown' : 0;
 }
 
-function mergeHolisticOverallImpression(prior, parsed) {
+/**
+ * Merges model holistic output; **recomputes** `shift` from **net** **band** change (low/mid/high). **"Tier"** in examiner language = in-band **position** 1–3, **not** the band.
+ * Clamps `confidence` by read % (≤40% → low; <70% → not high). `shift` = net **band** change only; **not** modified by confidence in code. The prompt’s **vibe** scale is **judgment** only.
+ * `readPct` = round(100 * chunksCompleted / totalChunks); omit only for no-op.
+ */
+function mergeHolisticOverallImpression(prior, parsed, readPct) {
   const raw = parsed?.overallImpression ?? parsed;
   if (!raw || typeof raw !== 'object') return prior ?? initialNotes().overallImpression;
   const base = prior ?? initialNotes().overallImpression;
+  const pct  = readPct == null || Number.isNaN(readPct) ? 100 : Math.min(100, Math.max(0, readPct));
   const out = { ...base };
   for (const k of ['A', 'B', 'C', 'D']) {
     if (!raw[k] || typeof raw[k] !== 'object') continue;
-    const priorBand = (base[k] ?? EMPTY_BAND).band ?? 'unknown';
-    const merged = { ...EMPTY_BAND, ...(base[k] ?? {}), ...raw[k] };
-    merged.shift = normalizeHolisticShift(merged.shift, merged.band);
-    // First time band becomes high/mid/low: no prior rung — tier change vs snapshot is "hold" (0), not +1/−1.
-    if (priorBand === 'unknown' && merged.band && merged.band !== 'unknown') {
-      merged.shift = 0;
-    }
-    out[k] = merged;
+    const priorEntry = base[k] ?? EMPTY_BAND;
+    const priorBand    = normalizeHolisticBand(priorEntry.band ?? 'unknown');
+    const merged       = { ...EMPTY_BAND, ...priorEntry, ...raw[k] };
+    merged.band        = normalizeHolisticBand(merged.band);
+    merged.confidence  = clampHolisticConfidenceForReadPct(
+      normalizeHolisticConfidence(merged.confidence),
+      pct,
+    );
+    // Shift: **source of truth** = net **band** change vs **prior** snapshot, not the model’s shift string. (Tier = in-band position, elsewhere.)
+    const netBandShift = computeHolisticShiftFromBandChange(priorBand, merged.band);
+    merged.shift     = stringifyHolisticShift(netBandShift);
+    out[k]         = merged;
   }
   return out;
 }
@@ -528,24 +615,37 @@ function buildHolisticChunkWindowMarkdown(chunks, paraStartSet, chunkIndexEnd) {
 }
 
 /**
- * System prompt for the dedicated holistic-impression API pass (runs every 2 reading chunks, only once ≥~15% of the essay is read).
+ * System prompt for the dedicated holistic-impression API pass (runs every 2 reading chunks, only once ≥20% of the essay is read).
  * @param {number} chunkIndexEnd  — 0-based index of the chunk just finished
  * @param {number} totalChunks
  */
 function buildHolisticImpressionSystemPrompt(chunkIndexEnd, totalChunks) {
-  const pct = Math.round(((chunkIndexEnd + 1) / totalChunks) * 100);
+  const pct = totalChunks > 0 ? Math.round(((chunkIndexEnd + 1) / totalChunks) * 100) : 0;
   return `You are an IB English A Paper 1 examiner on a DEDICATED pass. Return ONLY an updated "overallImpression" object for A, B, C, and D.
 
-This pass is scheduled after every TWO sequential reading chunks (and also after the final chunk if the count is odd), **but the app does not invoke it until at least ~15% of the essay (by chunk count) has been read** — a defensible overall impression of quality is not formed before that. Until then, the prior snapshot stays at band **unknown** and **shift** **unknown**. You synthesise: accumulated notes, ALL annotations so far, the last one–two student essay chunks, the source passage, and the PRIOR overallImpression snapshot.
+This pass is scheduled after every TWO sequential reading chunks (and also after the final chunk if the count is odd), **but the app does not invoke it until at least 20% of the essay (by chunk count) has been read** — the holistic pass is **not** run below that (hard); until then, band and shift stay **unknown**. You synthesise: accumulated notes, ALL annotations so far, the last one–two student essay chunks, the source passage, and the PRIOR overallImpression snapshot.
 
-READING POSITION FOR THIS UPDATE: chunk ${chunkIndexEnd + 1} of ${totalChunks} completed (~${pct}% through by chunk count). You are past the ~15% threshold.
+READING POSITION FOR THIS UPDATE: chunk ${chunkIndexEnd + 1} of ${totalChunks} completed (~${pct}% of the essay by chunk count). You are at or past the 20% threshold; **the app also applies confidence caps from this %** (see below).
+
+TERMINOLOGY (read first — this document uses IB-style wording):
+• **Band** = **high** / **mid** / **low** (the **three** **holistic** **quality** **levels** for the criterion). **"Shift"** in JSON = **one** **net** **step** between **bands** only (**"0"** if the **band** is **unchanged**).
+• **Tier** = **where** the work **sits** **within** a **band**: **"position"** **1** / **2** / **3** (lower / middle / upper **third** **against** that **band**’s **descriptors**). **Do** **not** use **"tier"** to **mean** **high** / **mid** / **low** — that is **always** **"band"** here. Adjusting **tier** **without** **changing** **band** does **not** change **"shift"** (it **stays** **"0"**); **"shift"** is **not** a **position** nudge.
+• **Confidence** = how **settled** you are on the **combination** (**band** + **tier** / **position**). It **rises** when **evidence** from **successive** **chunks** **stays** on a **similar** **level** — the **work** **keeps** **reading** as the **same** **band** and **roughly** the **same** **calibre** **within** that **band** (similar **tier**) for **enough** of the **essay** that the **label** is **no** **longer** **tentative**. It **decreases** (or you **hold** it) when **evidence** is **not** at a **stable** **level** — e.g. **drastic** **jumps** in how the work **reads** **for** **this** **criterion**, **consecutive** **net** **changes** in **band** (back-and-forth or repeated **re-banding**), or **inconsistent** **quality** **across** **chunks** so you **cannot** **treat** the **read** as **settled**; **hold** or **lower** **until** the **pattern** **clarifies**.
 
 Each criterion A–D must include:
   - "band": "high", "mid", "low", or "unknown" if too early
-  - "position": integer 1–3 within that band vs IB descriptors — 1 = lower third, 2 = middle third, 3 = upper third; if band is "unknown", position 0
-  - "confidence": "high", "medium", "low", or "unknown"
-  - "shift": string, exactly **"-1"**, **"0"**, **"1"**, or **"unknown"** (see step 3) — **required** field for the app UI; do not encode shift only inside the "note" text. Use the JSON string **"-1"** (not unquoted -1) so the value is always one of the four allowed strings.
+  - "position": integer 1–3 = **tier** **within** that **band** (lower / middle / upper **third**); if band is "unknown", position 0
+  - "confidence": "high", "medium", "low", or "unknown" — follow **CONFIDENCE** (mandatory) below: how **settled** you are on **band** + **tier** (**position**), not raw essay “quality” in the abstract. **Overclaiming** **"high"** when little is read is wrong. Use the **vibe** **table** for **willingness** to **move** **placement** (**not** a number you count to).
+  - "shift": string, exactly **"-1"**, **"0"**, **"1"**, or **"unknown"** (see step 3) — **required**; must **match** the **net** **change** in **"band"** (high/mid/low) from the **PRIOR** snapshot (the app **re-normalises** from **bands**). **Same** **band** as before → **"0"** even if **tier** (**position** **1–3**) **changes**; use the JSON string **"-1"** (not unquoted -1). Do not encode shift only inside the "note" text.
   - "note": follow the four-step workflow below (prose only—**do not** append [SHIFT: …] tags to the note; **shift** is its own key)
+
+CONFIDENCE (mandatory; **~${pct}%** = READING POSITION, by **chunk** count):
+• **What confidence means:** how **convinced** you are of the **current** **band** + **tier** (**position**) **read**, per criterion. It is **not** a generic “good / bad” score.
+• **When to raise confidence** (say in the **note** when **useful**): when **new** **chunks** show the **work** **consistently** **stays** on a **similar** **level** for this **criterion** — **same** **band** (or a **clear** **emerging** **band**), **and** **quality** that **repeatedly** **fits** that **read**; **less** whiplash, **less** “maybe mid, maybe high.” **Stable** **evidence** → **creep** **confidence** **up** from **low** toward **medium** and, when **%** read and **pattern** **allow**, toward **high**.
+• **When to lower confidence** (say in the **note** when **useful**): when **evidence** is **not** at the **same** **level** **across** the **read** for this **criterion** — e.g. **drastic** **shifts** in how it **comes** **across**, or **consecutive** **net** **band** **moves** (repeated **re-banding** or **whipsawing**) that **unsettle** a **stable** **placement**; then **downgrade** (or **hold** **low**/**medium**) **until** **later** **chunks** **reveal** a **clearer** **line**.
+• **Vibe: rough likelihood of moving placement this pass (NOT a quota, cap, dice, or number you track):** On **low** **confidence** you are **around** **~50%** **(vibe)** to **change** **something** that **needs** **changing** — **band** **and/or** **tier** (**position** **1–3**), **and/or** the **thrust** of the **case** in the **note**. On **medium**, maybe **~25%** **(vibe)** to **orchestrate** a **net** **band** **change** (the **only** **thing** **"shift"** **counts**) **this** pass when **warranted**. On **high**, about **~10%** **(vibe)** for a **net** **band** **step** this pass — only when **the** **evidence** is **really** **strong**; you **lean** to **keeping** the **band** more than on low/medium, but you still **re-band** when the **cumulative** **essay** **clearly** **demands** it. **Percentages** = gut ballpark; judge as a **senior** **examiner** would.
+• **Read-% caps (enforced in app):** If **≤40%** of the essay, **"confidence"** must be **"low"** (provisional by rule). If **<70%** and **>40%**, do **not** set **"high"** (so you **cannot** **claim** the **~10%**-style **"settled"** **stance** on **band**+**tier** before **enough** is read). If **≥70%**, **"high"** is **allowed** when you are **genuinely** **settled** on **band** + **tier**. **Match** your output to these caps.
+• **Tie to shift (conceptual):** the app **recomputes** **"shift"** from **"band"**; you choose **"band"** and **"position"** using **judgment** **guided** by the **vibe**; **"shift"** in JSON = **net** **band** **change** **only**. **Do** **not** invent **rigid** **micro-rules** that **override** **holistic** **judgment** — if a **re-band** is **warranted**, **do** it.
 
 WHEN "band" is **high** — **position 2 or 3** (middle or upper within high):
 • Reserve **position 2** and **position 3** for essays where **at least ~50% of the text** (judge by chunk coverage, body paragraphs, and/or word share) **sustainedly** shows **high-band** quality for that criterion. “Most of the essay” in practice means **≥ about half** of the response demonstrates high attributes — not a few brilliant paragraphs in an otherwise mid-level essay.
@@ -563,16 +663,18 @@ STEP 2 — ADD NEW OBSERVATIONS (this criterion only)
 • Add what the last two reading chunks (plus annotations and other notes) newly show for **this** criterion only: strengths, weaknesses, and **prevalence** (how widespread the pattern is in the essay so far).
 • Good and bad both belong here when evidence exists.
 
-STEP 3 — **shift** in JSON, **band/position** vs the PRIOR rung (not free-floating)
-• **First impression vs later passes:** If the **prior** snapshot has **band** **"unknown"** and this pass is the **first** where you set **band** to **high** / **mid** / **low** for that criterion, you are **forming the first rung** — there is no prior rung to move from. You **must** set **"shift"** to **"0"** (default hold). **Do not** use **"1"** or **"-1"** on that first formation pass. While **band** stays **unknown**, keep **"shift"** as **"unknown"**. On **later** passes (prior **band** already high/mid/low), compare to **THIS** rung and set **"shift"** to **"1"**, **"0"**, **"-1"**, or, rarely, **"unknown"** if not judgable.
-• **Anchor = THIS rung (mandatory) once band is known:** The **current** snapshot **band** and **position** (the prior holistic values) are **THIS** rung. Look up the **HIGH / MID / LOW** line (below) and interpret **position 1 / 2 / 3** for **this** letter. The quality bar is **the standard implied by THIS band+position together** — not a free-floating idea of a "good" essay, not an aspirational bar from another band.
-• **Compare to THIS:** Weigh the **new** material (the last two chunks, annotations, and accumulated notes) against **THAT** implied standard. Does recent+overall evidence show the student **sustainedly above** THIS rung, **about** on it, or **below** it (with **consistent** support — not a single outlier line)? If the prior rung is known and you still cannot judge net movement this pass, **"shift"** may be **"unknown"** (rare after ~15% read; prefer a best judgment when possible).
-• **Set the "shift" field (required; schema for the app UI):** String **"1"** (up one net tier), **"0"** (hold, including **default on first** band+position formation from **unknown**), **"-1"** (down one net tier), or **"unknown"** (band still **unknown**, or tier move not judgable). The app reads **only** this key. **"1"** = one **net** step up; **"-1"** = one **net** step down; **"0"** = **no** net tier change **or** first-time establishment of a rung. **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose (steps 1–2) plus your reasoning, without duplicating shift as bracket text.
-• **One tier per pass** by default: do not jump several rungs unless the last two chunks are overwhelmingly sustained; prefer a single +1, -1, or 0. Boundary crosses (e.g. mid upper → high lower) are still **one** net step and match **+1** or **-1** as appropriate, with **band** and **position** updated to match.
+STEP 3 — **shift** in JSON = **net** **band** **change** vs the **PRIOR** snapshot — must **match** the **real** **band** **step**; use the **CONFIDENCE** **vibe** to **self-calibrate** (see **CONFIDENCE**; not a **rigid** **rule** for **"0"**)
+• **First formation:** If the **prior** **band** is **"unknown"** and this pass is the **first** where you set **band** to **high** / **mid** / **low**, you **must** set **"shift"** to **"0"** (no prior **band**). **Do not** use **"1"** or **"-1"** on that pass. While **new** **band** stays **"unknown"**, keep **"shift"** **"unknown"**.
+• **Later passes** (prior **band** already **known**): **"shift"** = **net** **change** in **band** only (**low** < **mid** < **high**). **Same** **band** as before (only **tier** / **position** **1–3** may change) → **"0"**. One **band** up (e.g. mid→high) → **"1"**. One **band** down → **"-1"**. The app will **recompute** **shift** from your **prior** and **new** **bands**; **return** a **shift** string **consistent** with the **bands** you output.
+• **How** to **choose** the **new** **band** (and thus when **shift** is **0** vs **±1**): use the **vibe** **table** in **CONFIDENCE** with your **cumulative** read (prior note + new chunks + annotations). **Low** = **malleable**; **high** = **stiff** on **re-banding** unless the **case** is **strong** — but **no** **mechanical** **rule** that **forces** **"0"** for **isolated** or **minor** **spots**; if a **band** **change** is **warranted**, **do** it. **If** the **same** **band** **remains** **best** (you may still **nudge** **tier** = **position**), **"0"** **shift**; **if** a **single** **band** **step** is **best**, **"±1"** (see **one-step** **rule**).
+• **Anchor = THIS rung** (the **prior** **band+position** for this letter). Weigh new chunks + notes + annotations against that standard.
+• If you cannot judge **with** the **%** read so far, keep **"unknown"** for **band** and **"unknown"** for **shift** (rare at **≥~20%**; prefer a **best** judgment when possible). After **~40%** read, **unknown** for **band** is **rare** unless the essay is **truly** **opaque**.
+• **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose. **"1"** = one **net** **band** **up**; **"-1"** = one **net** **band** **down**; **"0"** = same **band** as **before** (including first formation from **unknown**) or **insufficient** signal; **nudging** **tier** (**position**) **only** = **"0"** **for** **shift**.
+• **One band** **step** per pass by default: do not jump two **bands** in one go unless the evidence is **overwhelming**; if the **new** **band** is two steps away, the **app** will still cap **shift** to **"1"** or **"-1"** in one direction. Prefer **one** **clear** **step**.
 
 STEP 4 — ASSIGN / KEEP BANDS (unchanged logic except as driven by step 3)
-• Setting **band** and **position** from **unknown** early on is unrestricted when the essay finally supports a first real estimate (same as always).
-• When band is already known, only change it when step 3 warrants (including boundary crosses as described).
+• Setting **band** and **position** from **unknown** is appropriate once **enough** has been read (this pass only runs at **≥20%**). The **~50%** / **~25%** / **~10%** **vibe** is your **self-check**, **not** a **quota** (see **CONFIDENCE**).
+• When **band** is **already** **known**, **revise** **band** and/or **tier** (**position**) when your **holistic** **judgment** **supports** it — **informed** by the **vibe** (low = **willing** to **move** **placement**; high = **rare** **net** **band** **steps** unless very convinced), **not** a **filter** that **blocks** good **judgment** (including band **boundary** cases as described).
 
 OTHER:
 • Holistic "note" fields do **not** count toward the reader's 350-word cap on thesis/reasoning/etc.
@@ -590,10 +692,12 @@ Criterion A — Knowledge and Understanding
 
 Criterion B — Analysis and Interpretation
 - Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
-- **Where bands differ:** **High vs mid** — turns on **evaluation** (how/why an authorial choice **achieves** its effect) and on **broader** moves that **tie** several choices or **effects** together. **Mid vs low** — turns on **competent identification and explanation** of **effects** (and techniques): the **mid** response does this **competently** in much of the essay; the **low** response **does not** (often **incorrect**, thin, or lost in **literal** summary).
+- **"Description" (B):** In borderline B language, this means **narration, paraphrase, plot beats, or literal summary of the source** where the task calls for **authorial choice, textual features, and how they shape meaning** — not "any describing" in general. **Description ≠ "no evaluation"** as a rule: a student can **analyse in plain language** by **naming a technique and explaining an effect** (even **simply**). Contrast **B_D** in annotations: "description" there is **summary/narration in place of** analysis, **worse** than an answer that at least **gestures** at effect.
+- **What counts toward "competent" B (and the mid / mid-position-1 track):** A technique+effect move **only** **counts** when the **label** is **at least** **plausible** for the **text** and the **effect** is **defensible** and **grounded** in the passage. **Incorrect** or **unjustified** effect; **misidentification** of device or method; or **muddled** / **confusing** technique talk **does** **not** count — do **not** treat a **sprinkling** of **wrong** or **vague** pairings as **"sustained competence."** (Align with **B✓** / **B✗** / **B?** in annotations.)
+- **Where bands differ:** **High vs mid** — **mainly** the **sustained depth** of **evaluation** (how/why a choice **achieves** its effect) and **broader** **weighing** of **patterns** / **several** choices — **not** whether the essay ever "describes." **Mid vs low** — whether **justified, clearly identified** **technique**+**effect** work is **sustained** enough. A response that **repeatedly** and **competently** (per the **rule** **above**) **names** **techniques** and **explains** **effects** (even if **basic**) is **on track** for **mid** and often **warrants** at least **mid position 1**; **chronic** **wrong** labels, **unjustified** **effects**, or **confusing** **mixes** of **techniques** **block** that **reading** and **point** to **low** (or only **isolated** **mid**-**level** **moments** amid **failure** **elsewhere**).
 - High: **Good evaluation of effects** in **many** places; awareness of **broader authorial strategies** to create meaning, plus **some genuine insight** and explanation of how effects are produced. Does **not** need evaluation on every occasion or in every paragraph.
-- Mid: **Competent** **identification and explanation** of **effects** (hence **above** low), but **evaluation** of how those effects are **achieved** is **inconsistent**; the **stronger and more frequent** the evaluative work, the **higher** the position **within the mid band**.
-- Low: **Much** description or summarising of **literal** plot or meaning; only **some** analysis and effect identification, often **not competent**; **sometimes incorrect**; **almost no evaluation** of how authorial choices **produce** the effects named.
+- Mid: **Competent** (see **"what** **counts"** **above**) **identification and explanation** of **authorial** **techniques** and **effects** across **much** of the essay; **evaluation of how** those effects are **produced** may be **thin**, **inconsistent**, or **basic** — that **tends to cap** a response in **mid**. **Sustained** **justified** technique + **defensible** effect, **even** where **"how"** is **uneven**, typically maps to **mid position 1**+; **higher** **mid** (and **high**) need **stronger** / **more** **frequent** **"how"** / **"why"** **evaluation** — **not** **filler** from **B✗/B?-heavy** work.
+- Low: **Large stretches** of **literal** retelling, **plot** **summary**, or **paraphrase** with **little** **authorial** **analysis**; **or** **sustained** **failure** to **justify** **technique**+**effect** (wrong, **muddled**, or **asserted** **effects**); **or** only **rare** **patches** of **sound** B work amid **the** **rest** **failing** the **"what** **counts"** test. **Do not** use a **shallow** "how" **alone** to push **low** if **identification+effect** are **repeatedly** **plausible** and **defensible** — that **still** **leans** **mid** per **the** **rule** **above** (unless **errors** are **frequent** enough to **void** **competence** **overall**).
 
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
@@ -616,7 +720,7 @@ Criterion D — Language
 
 CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants **"shift"**: **"1"** or a band jump unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive **"1"**.
 
-Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (string: **"-1"**, **"0"**, **"1"**, or **"unknown"** only), and **note** (string, no [SHIFT: …] suffix). No markdown. No other keys.`;
+Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (string: **"-1"**, **"0"**, **"1"**, or **"unknown"** only), and **note** (string, no [SHIFT: …] suffix). The **app** will **recompute** **shift** from your **previous** and **new** **band** (net **band** **step** only; **tier** = **position**) and **clamp** **confidence** to the **%**-read **rules** — still output **fields** **as if** final. No markdown. No other keys.`;
 }
 
 /**
@@ -663,12 +767,15 @@ ${JSON.stringify(annotationsForHolisticPrompt(allAnnotations), null, 2)}`;
     }
   }, { label: `holisticPass@${chunkIndexEnd + 1}`, tries: 3, baseMs: 1500 });
 
-  return mergeHolisticOverallImpression(notes.overallImpression, parsed);
+  const readPct = totalChunks > 0
+    ? Math.min(100, Math.round(((chunkIndexEnd + 1) / totalChunks) * 100))
+    : 0;
+  return mergeHolisticOverallImpression(notes.overallImpression, parsed, readPct);
 }
 
 /**
  * Run the full sequential reading pass over the student's essay.
- * One API call per chunk for notes + annotations; a second call every 2 chunks for holistic impression, **only after ~15% of chunks** have been read (impression not meaningful before that).
+ * One API call per chunk for notes + annotations; a second call every 2 chunks for holistic impression, **only after ≥20% of chunks** have been read (impression not formed before that; enforced in code).
  *
  * @param {{ onBefore?: Function, onAfter?: Function, onHolisticBefore?: Function, onHolisticAfter?: Function }} [callbacks]
  *   onBefore(chunkIdx, totalChunks, currentNotes) — before reading chunk i
@@ -695,9 +802,9 @@ async function readEssaySequentiallyFromChunks(sourceText, chunks, paraStartSet,
     allAnnotations.push(...chunkAnns);
 
     const runHolistic = (i + 1) % 2 === 0 || i === chunks.length - 1;
-    /** Meaningful holistic (band/position/shift) only after ~15–20% of the essay; prior passes stay initial (e.g. shift unknown). */
+    /** Holistic pass only after ≥20% of the essay (by chunk count); prior passes keep initial OI (band/shift unknown). */
     const chunkPct = (i + 1) / chunks.length;
-    const holisticMinPct = 0.15;
+    const holisticMinPct = 0.2;
     const doHolistic = runHolistic && chunkPct >= holisticMinPct;
     if (doHolistic) {
       if (onHolisticBefore) onHolisticBefore(i, chunks.length, notes);
@@ -793,10 +900,12 @@ Criterion A — Knowledge and Understanding
 
 Criterion B — Analysis and Interpretation
 - Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
-- **Where bands differ:** **High vs mid** — turns on **evaluation** (how/why an authorial choice **achieves** its effect) and on **broader** moves that **tie** several choices or **effects** together. **Mid vs low** — turns on **competent identification and explanation** of **effects** (and techniques): the **mid** response does this **competently** in much of the essay; the **low** response **does not** (often **incorrect**, thin, or lost in **literal** summary).
+- **"Description" (B):** In borderline B language, this means **narration, paraphrase, plot beats, or literal summary of the source** where the task calls for **authorial choice, textual features, and how they shape meaning** — not "any describing" in general. **Description ≠ "no evaluation"** as a rule: a student can **analyse in plain language** by **naming a technique and explaining an effect** (even **simply**). Contrast **B_D** in annotations: "description" there is **summary/narration in place of** analysis, **worse** than an answer that at least **gestures** at effect.
+- **What counts toward "competent" B (and the mid / mid-position-1 track):** A technique+effect move **only** **counts** when the **label** is **at least** **plausible** for the **text** and the **effect** is **defensible** and **grounded** in the passage. **Incorrect** or **unjustified** effect; **misidentification** of device or method; or **muddled** / **confusing** technique talk **does** **not** count — do **not** treat a **sprinkling** of **wrong** or **vague** pairings as **"sustained competence."** (Align with **B✓** / **B✗** / **B?** in annotations.)
+- **Where bands differ:** **High vs mid** — **mainly** the **sustained depth** of **evaluation** (how/why a choice **achieves** its effect) and **broader** **weighing** of **patterns** / **several** choices — **not** whether the essay ever "describes." **Mid vs low** — whether **justified, clearly identified** **technique**+**effect** work is **sustained** enough. A response that **repeatedly** and **competently** (per the **rule** **above**) **names** **techniques** and **explains** **effects** (even if **basic**) is **on track** for **mid** and often **warrants** at least **mid position 1**; **chronic** **wrong** labels, **unjustified** **effects**, or **confusing** **mixes** of **techniques** **block** that **reading** and **point** to **low** (or only **isolated** **mid**-**level** **moments** amid **failure** **elsewhere**).
 - High: **Good evaluation of effects** in **many** places; awareness of **broader authorial strategies** to create meaning, plus **some genuine insight** and explanation of how effects are produced. Does **not** need evaluation on every occasion or in every paragraph.
-- Mid: **Competent** **identification and explanation** of **effects** (hence **above** low), but **evaluation** of how those effects are **achieved** is **inconsistent**; the **stronger and more frequent** the evaluative work, the **higher** the position **within the mid band**.
-- Low: **Much** description or summarising of **literal** plot or meaning; only **some** analysis and effect identification, often **not competent**; **sometimes incorrect**; **almost no evaluation** of how authorial choices **produce** the effects named.
+- Mid: **Competent** (see **"what** **counts"** **above**) **identification and explanation** of **authorial** **techniques** and **effects** across **much** of the essay; **evaluation of how** those effects are **produced** may be **thin**, **inconsistent**, or **basic** — that **tends to cap** a response in **mid**. **Sustained** **justified** technique + **defensible** effect, **even** where **"how"** is **uneven**, typically maps to **mid position 1**+; **higher** **mid** (and **high**) need **stronger** / **more** **frequent** **"how"** / **"why"** **evaluation** — **not** **filler** from **B✗/B?-heavy** work.
+- Low: **Large stretches** of **literal** retelling, **plot** **summary**, or **paraphrase** with **little** **authorial** **analysis**; **or** **sustained** **failure** to **justify** **technique**+**effect** (wrong, **muddled**, or **asserted** **effects**); **or** only **rare** **patches** of **sound** B work amid **the** **rest** **failing** the **"what** **counts"** test. **Do not** use a **shallow** "how" **alone** to push **low** if **identification+effect** are **repeatedly** **plausible** and **defensible** — that **still** **leans** **mid** per **the** **rule** **above** (unless **errors** are **frequent** enough to **void** **competence** **overall**).
 
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
@@ -818,7 +927,7 @@ Criterion D — Language
 - Low: Stays **below** **mid**-level **control** (see **position** **rule**). **Worse** **(lower** **1)** end of the **band** — **vocabulary** / **syntax** / **register** **often** **get** **in** **the** **way**; **clarity** is **frequently** **impeded**. **Stronger** **(2** or **3)** end of **low** — still **distracting** and **lumpy** **D**-level work, but **impedes** **understanding** only **intermittently**; the **read** is **bumpy**, **not** **globally** **broken**.
 
 PRINCIPAL BENCHMARK — HOLISTIC IMPRESSION (mandatory anchor):
-For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. If **shift** is **"unknown"** (holistic or tier move not yet judgable), rely on **band**, **position**, and the **note**; do not treat **unknown** as a directional signal. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
+For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. If **shift** is **"unknown"** (holistic or band move not yet judgable), rely on **band**, **position**, and the **note**; do not treat **unknown** as a directional signal. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
 
 SECONDARY ADJUSTMENT — READING NOTES + ANNOTATIONS:
 Use **reasoning, concerns, feeling**, and **annotations** to **raise or lower** the mark **only when** there is a **clear, repeated pattern** that **does not fit** the holistic call (e.g. many more negative markers than the holistic note suggests, or sustained strengths the holistic note underplayed). Small local noise should not override holistic. When you adjust, say so plainly in the justification (without meta-phrases like "the overallImpression field").
@@ -1310,23 +1419,29 @@ function renderOverallFromScores() {
     .join('');
 
   el.innerHTML = `
-    <table class="ib-overall-score-table">
-      <thead><tr><th>Criterion</th><th>Mark</th><th>Max</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot>
-        <tr class="ib-total-row">
-          <td><strong>Total</strong></td>
-          <td class="ib-score-cell"><strong>${total}</strong></td>
-          <td class="ib-score-max">20</td>
-        </tr>
-      </tfoot>
-    </table>
     <div class="ib-grade-block">
     <div class="ib-grade-badge-wrap">
       <span class="ib-grade-badge">IB Grade&nbsp;<strong>${ibGrade}</strong></span>
       <span class="ib-grade-total">${total}&thinsp;/&thinsp;20</span>
     </div>
-    ${renderIb7BoundaryTableHtml(ibGrade)}
+    <div class="ib-overall-scoring-row">
+      <div class="ib-overall-scoring-scores">
+        <table class="ib-overall-score-table">
+          <thead><tr><th>Criterion</th><th>Mark</th><th>Max</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr class="ib-total-row">
+              <td><strong>Total</strong></td>
+              <td class="ib-score-cell"><strong>${total}</strong></td>
+              <td class="ib-score-max">20</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="ib-overall-scoring-thresholds">
+        ${renderIb7BoundaryTableHtml(ibGrade)}
+      </div>
+    </div>
     <p class="ib-grade-scale-note">1–7 uses a relaxed map from /20 to grade because this per-criterion grader is stricter; see the table above.</p>
     </div>
     ${feedbackHtml ? `<div class="ib-feedback-section"><h4 class="ib-feedback-section__title">Examiner feedback</h4>${feedbackHtml}</div>` : ''}`;
@@ -1624,14 +1739,14 @@ function renderBandPositionBar(band, position) {
   return `<span class="rp-bandpos" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Within band: ${word} third, ${pos} of 3`)}">${segs}</span>`;
 }
 
-/** Holistic pass tier change vs prior snapshot (-1 / 0 / +1) or unknown — UI chip. */
+/** Holistic pass net *band* step vs prior snapshot (-1 / 0 / +1) or unknown — UI chip. */
 function renderHolisticShiftChip(shift, band) {
   const s = normalizeHolisticShift(shift, band);
   const label =
-    s === 'unknown' ? 'Shift: not determined yet (or holistic/tier move not judgable for this pass)' :
-    s === 1 ? 'Shift: up one tier vs prior (this pass)' :
-    s === -1 ? 'Shift: down one tier vs prior (this pass)' :
-    'Shift: hold (no band/position change this pass)';
+    s === 'unknown' ? 'Shift: not determined yet (or net band move not judgable for this pass)' :
+    s === 1 ? 'Shift: up one band (e.g. mid→high) vs prior pass' :
+    s === -1 ? 'Shift: down one band (e.g. high→mid) vs prior pass' :
+    'Shift: hold (same band; tier = position 1–3 within band may still change)';
   if (s === 'unknown') {
     return `<span class="rp-overall-shift rp-overall-shift--unk" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">?</span>`;
   }
