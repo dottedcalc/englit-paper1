@@ -3817,6 +3817,37 @@ textarea {
   font-style: italic;
 }
 
+/* Holistic pass shift (-1 / 0 / +1) from JSON, shown next to position bar */
+.rp-overall-shift {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.05rem 0.2rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  line-height: 1.1;
+}
+.rp-overall-shift--0 {
+  color: #4b5563;
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+.rp-overall-shift--p1 {
+  color: #14532d;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.rp-overall-shift--m1 {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
 /* Holistic impression: 3 within-band tiers (lower / middle / upper) — gray segments, blue fill */
 .rp-bandpos {
   display: inline-flex;

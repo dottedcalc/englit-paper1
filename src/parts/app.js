@@ -135,7 +135,7 @@ async function withRetry(fn, { label = 'op', tries = 3, baseMs = 1200 } = {}) {
  * TOTAL WORD BUDGET: ≤ 300 words across all fields at all times.
  * The reader must compress or merge earlier notes when the budget is tight.
  */
-const EMPTY_BAND = { band: 'unknown', position: 0, confidence: 'unknown', note: '' };
+const EMPTY_BAND = { band: 'unknown', position: 0, confidence: 'unknown', note: '', shift: 0 };
 function initialNotes() {
   return {
     thesis: '',
@@ -214,8 +214,10 @@ const OI_BAND_OBJ_SCHEMA = {
     position:   { type: 'INTEGER' },
     confidence: { type: 'STRING', enum: ['high', 'medium', 'low', 'unknown'] },
     note:       { type: 'STRING' },
+    /** -1 = down one tier vs prior band+position anchor; 0 = hold; +1 = up one tier (may change band+position) */
+    shift:      { type: 'INTEGER', enum: [-1, 0, 1] },
   },
-  required: ['band', 'position', 'confidence', 'note'],
+  required: ['band', 'position', 'confidence', 'note', 'shift'],
 };
 
 /** Dedicated pass: holistic impression only (runs every 2 reading chunks). */
@@ -374,12 +376,12 @@ A_CURVY    ~  Not the best quote/evidence choice to support this point
 A_EXCLAIM  !  Understands local meaning and implications but not the broader meaning of the text
 
 ── Criterion B (Stylistic Features) ──
-B_STAR     ★  Devices related to each other and to the text's larger argument — not analysed in isolation
-B_CHECK    ✓  Identifies not just WHAT devices are present but WHY effective and HOW they construct meaning
+B_STAR     ★  Strong **evaluation of HOW** this authorial choice achieves its effect; **or** ties **several** authorial choices together to evaluate implications; **or** works at a **broader** authorial pattern (not a star for mere labelling, even if correct)
+B_CHECK    ✓  Identifies a technique and **describes the effect correctly** (accurate name + effect; may be shallow — **does not** require full "how" evaluation; that is B★ vs B∅)
 B_D        D  Describes or summarises plot (or surface content) without analysing how any device shapes meaning or affects the reader — worse than B_NO_EVAL (∅), which at least gestures at effect
-B_CROSS    ✗  Device labels are incorrect, conflated, or applied to the wrong element
+B_CROSS    ✗  Identifies a technique but the effect is described **contradictorily** or **incorrectly**; or device/label is **wrong**, **conflated**, or **applied to the wrong element**
 B_QUESTION ?  Connection between device and meaning is tenuous, unsupported, or simply asserted
-B_NO_EVAL  ∅  Evaluation of how features shape meaning is absent — tells effect but not how achieved
+B_NO_EVAL  ∅  **How** the authorial choice achieves the effect is **not evaluated** (mechanism absent). **May be used on the same anchor as B_CHECK** (two annotations, same 3–8 word span): the student **correctly** names technique and effect, but does **not** explain how the choice produces that effect — use both **B_CHECK** and **B_NO_EVAL** in that case.
 B_UNSUP    ⚠  Relies on personal/historical/trivia associations not within the text
 B_BR       BR  Fails to connect the device to its effect on the audience/reader — for drama: no effect on stage or spectator; for poetry/prose: no effect on the reader
 
@@ -470,6 +472,14 @@ function annotationsForHolisticPrompt(allAnnotations) {
   }));
 }
 
+function normalizeHolisticShift(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  if (n > 0) return 1;
+  if (n < 0) return -1;
+  return 0;
+}
+
 function mergeHolisticOverallImpression(prior, parsed) {
   const raw = parsed?.overallImpression ?? parsed;
   if (!raw || typeof raw !== 'object') return prior ?? initialNotes().overallImpression;
@@ -477,7 +487,9 @@ function mergeHolisticOverallImpression(prior, parsed) {
   const out = { ...base };
   for (const k of ['A', 'B', 'C', 'D']) {
     if (!raw[k] || typeof raw[k] !== 'object') continue;
-    out[k] = { ...EMPTY_BAND, ...(base[k] ?? {}), ...raw[k] };
+    const merged = { ...EMPTY_BAND, ...(base[k] ?? {}), ...raw[k] };
+    merged.shift = normalizeHolisticShift(merged.shift);
+    out[k] = merged;
   }
   return out;
 }
@@ -510,12 +522,18 @@ Each criterion A–D must include:
   - "band": "high", "mid", "low", or "unknown" if too early
   - "position": integer 1–3 within that band vs IB descriptors — 1 = lower third, 2 = middle third, 3 = upper third; if band is "unknown", position 0
   - "confidence": "high", "medium", "low", or "unknown"
-  - "note": follow the four-step workflow below; end with an explicit shift tag (see step 3)
+  - "shift": integer **-1**, **0**, or **+1** only (see step 3) — this is a **dedicated field for the UI**; do not encode shift only inside the "note" text.
+  - "note": follow the four-step workflow below (prose only—**do not** append [SHIFT: …] tags to the note; **shift** is its own key)
+
+WHEN "band" is **high** — **position 2 or 3** (middle or upper within high):
+• Reserve **position 2** and **position 3** for essays where **at least ~50% of the text** (judge by chunk coverage, body paragraphs, and/or word share) **sustainedly** shows **high-band** quality for that criterion. “Most of the essay” in practice means **≥ about half** of the response demonstrates high attributes — not a few brilliant paragraphs in an otherwise mid-level essay.
+• If high-quality work for that criterion is real but only a **minority** of the essay, use **position 1** (lower third of high) or re-evaluate whether **mid** is more honest.
 
 HOLISTIC UPDATE WORKFLOW — apply IN ORDER, separately for each criterion (A, B, C, D); do not conflate criteria.
 
 STEP 1 — CARRY FORWARD THE PRIOR NOTE (summarise, do not gut)
-• Start from the prior overallImpression note for this letter. Summarise and compress only where needed; do NOT oversimplify or drop past observations to save space.
+• Start from the prior overallImpression note for this letter. **Summarise** and compress only where needed: you must **not** excessively oversimplify or drop past judgements, but you must **not** be verbose either. Prioritise (for **this** criterion) **how far** the quality extends across the essay (**extent** / prevalence), the **criterion-relevant** quality itself, and **a few** concrete examples or anchor phrases — not long lists.
+• Keep the balance: preserve nuance; avoid gutting; avoid paragraph-long repetition of old wording.
 • Body paragraphs: treat them consistently. Space devoted to each named body paragraph in the note must stay **proportional** to that paragraph's share of the essay (by chunks and/or word count in the student text). As a floor, keep **at least ~20 words** of substantive, criterion-specific coverage **per body paragraph you still name** — do not shrink a body paragraph's treatment to a token or one-liner.
 • Introduction and conclusion may be shorter than body paragraphs but still specific; do not let the conclusion dominate.
 
@@ -523,35 +541,35 @@ STEP 2 — ADD NEW OBSERVATIONS (this criterion only)
 • Add what the last two reading chunks (plus annotations and other notes) newly show for **this** criterion only: strengths, weaknesses, and **prevalence** (how widespread the pattern is in the essay so far).
 • Good and bad both belong here when evidence exists.
 
-STEP 3 — SHIFT BAND / POSITION (explicit mark in the note)
-After merging step 1 + 2, decide the **change** vs the PRIOR holistic snapshot for this criterion. In the **note** text, you MUST end with a single bracketed line in exactly one of these forms:
-  [SHIFT: +1]  — consistent evidence across the **recent** chunks shows quality **above** the prior within-band placement (enough that recent evidence **somewhat overweights** the older picture). Apply the appropriate change to **position** (1–3); if the shift crosses a band boundary (e.g. mid band + position 3 → high band + position 1), update **band** as well as **position**.
-  [SHIFT: -1]  — consistent evidence in recent chunks shows quality **below** the prior within-band placement (same rule: may change **band** if you cross from high-lower to mid-upper, etc.).
-  [SHIFT: 0]   — no **consistent** pattern in recent chunks; evidence is local, thin, or contradictory → **do not** move band or position for this pass. If there is a hint but not enough, adjust **confidence** up or down and briefly explain in the note before the [SHIFT: 0] line.
-
-Use +1 / -1 as **one step** on the combined ladder (move one tier: e.g. mid middle → mid upper is +1; crossing mid upper into high low is still one holistic step but counts as +1 **and** a **band** change). Do not jump multiple tiers in one pass unless the last two chunks contain overwhelming, repeated proof — prefer a single +1/-1 per pass.
+STEP 3 — **shift** in JSON, **band/position** vs the PRIOR rung (not free-floating)
+• **Anchor = THIS rung (mandatory):** The **current** snapshot **band** and **position** (the prior holistic values you are about to update) are **THIS** rung. Look up the **HIGH / MID / LOW** line for that **band** (below) and ask what the lower / middle / upper third (**position 1 / 2 / 3**) means for **this** letter. The quality bar for **this** pass is **the standard implied by THIS band+position together** — not a free-floating idea of a "good" essay, not an aspirational bar from another band.
+• **Compare to THIS:** Weigh the **new** material (the last two chunks, annotations, and accumulated notes) against **THAT** implied standard. Does recent+overall evidence show the student **sustainedly above** THIS rung, **about** on it, or **below** it (with **consistent** support — not a single outlier line)?
+• **Set the "shift" field (required; schema for the app UI):** Every A–D object must include a numeric **"shift"** key with exactly **+1**, **0**, or **-1**. The app renders this in the UI; it does **not** infer shift from prose or from anything at the "end" of a message. **+1** = one **net** step up the ladder (e.g. within-band tier up, or into the next band); **-1** = one **net** step down; **0** = **no change** to **band** and **position** this pass (tweak **confidence** in the note if the picture sharpens or blurs, and explain in prose if needed). **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose (steps 1–2) plus your reasoning, without duplicating shift as bracket text.
+• **One tier per pass** by default: do not jump several rungs unless the last two chunks are overwhelmingly sustained; prefer a single +1, -1, or 0. Boundary crosses (e.g. mid upper → high lower) are still **one** net step and match **+1** or **-1** as appropriate, with **band** and **position** updated to match.
 
 STEP 4 — ASSIGN / KEEP BANDS (unchanged logic except as driven by step 3)
 • Setting **band** and **position** from **unknown** early on is unrestricted when the essay finally supports a first real estimate (same as always).
 • When band is already known, only change it when step 3 warrants (including boundary crosses as described).
 
 OTHER:
-• Holistic notes do NOT count toward the reader's 350-word cap on thesis/reasoning/etc. — write as fully as needed subject to step 1 floors.
-• Rough length by progress (~${pct}% through): opening phase may leave band unknown and note empty; mid-pass notes grow; near the end allow fuller accounting — but **never** violate step 1 body-paragraph floors to hit a shorter word target.
+• Holistic "note" fields do **not** count toward the reader's 350-word cap on thesis/reasoning/etc.
+• **Per-criterion word limit (each of A, B, C, D):** each "note" must be **at most 130 words** — a hard cap; never exceed it.
+• **Use the 130-word budget progressively through the essay:** early in the read (low chunk %), keep each holistic note **short**; on each later holistic pass, use **more and more** of the allowed words as the picture fills in, scaling roughly with **~${pct}%** of the essay read so far (by the final pass(es), when warranted, work **up toward** 130 words per criterion). Do not waste the cap on filler; do **not** under-write late passes when the essay is nearly complete and evidence is rich — notes should feel **cumulative and fuller** as the sequence advances.
 • Always anchor to specific sections (intro, body 1, …, conclusion). Criterion separation: no cross-talk between A/B/C/D.
 
 HIGH / MID / LOW DEFINITIONS (use when setting "band"):
 Criterion A — Knowledge and Understanding
 - Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
-- High: strong understanding of the text; includes some moments of genuine insight into implications or subtleties — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
+- High: strong understanding of the text; **many implications**, **some subtleties**, and **some insight** — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
 - Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
 - Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
 
 Criterion B — Analysis and Interpretation
 - Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
-- High: insightful and convincing analysis of textual features and/or authorial choices; the essay **mostly evaluates** how such features shape meaning (not every passage need reach the same depth, but evaluation is the prevailing pattern rather than description alone).
-- Mid: generally appropriate analysis of textual features and/or authorial choices; evaluation is sometimes present.
-- Low: some appropriate analysis but is RELIANT ON DESCRIPTION; evaluation of how features shape meaning is largely absent.
+- **Where bands differ:** **High vs mid** — turns on **evaluation** (how/why an authorial choice **achieves** its effect) and on **broader** moves that **tie** several choices or **effects** together. **Mid vs low** — turns on **competent identification and explanation** of **effects** (and techniques): the **mid** response does this **competently** in much of the essay; the **low** response **does not** (often **incorrect**, thin, or lost in **literal** summary).
+- High: **Good evaluation of effects** in **many** places; awareness of **broader authorial strategies** to create meaning, plus **some genuine insight** and explanation of how effects are produced. Does **not** need evaluation on every occasion or in every paragraph.
+- Mid: **Competent** **identification and explanation** of **effects** (hence **above** low), but **evaluation** of how those effects are **achieved** is **inconsistent**; the **stronger and more frequent** the evaluative work, the **higher** the position **within the mid band**.
+- Low: **Much** description or summarising of **literal** plot or meaning; only **some** analysis and effect identification, often **not competent**; **sometimes incorrect**; **almost no evaluation** of how authorial choices **produce** the effects named.
 
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
@@ -565,9 +583,9 @@ Criterion D — Language
 - Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
 - Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and distracting at times.
 
-CONCLUSION WEIGHTING: A Paper 1 conclusion rarely warrants a [SHIFT: +1] or band jump on its own unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive positive shifts.
+CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants **shift: +1** or a band jump unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive **+1**.
 
-Return ONLY JSON: { "overallImpression": { "A": { "band": "…", "position": <1–3 or 0>, "confidence": "…", "note": "…" }, "B": {…}, "C": {…}, "D": {…} } }. No markdown. No extra keys.`;
+Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (integer: -1, 0, or +1 only), and **note** (string, no [SHIFT: …] suffix). No markdown. No other keys.`;
 }
 
 /**
@@ -733,15 +751,16 @@ CONTEXT: This is a **~75-minute unseen literary analysis** (Paper 1 conditions).
 HIGH / MID / LOW DEFINITIONS (use these together with holistic band + position to choose the mark):
 Criterion A — Knowledge and Understanding
 - Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
-- High: strong understanding of the text; includes some moments of genuine insight into implications or subtleties — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
+- High: strong understanding of the text; **many implications**, **some subtleties**, and **some insight** — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
 - Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
 - Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
 
 Criterion B — Analysis and Interpretation
 - Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
-- High: insightful and convincing analysis of textual features and/or authorial choices; the essay **mostly evaluates** how such features shape meaning (not every passage need reach the same depth, but evaluation is the prevailing pattern rather than description alone).
-- Mid: generally appropriate analysis of textual features and/or authorial choices; evaluation is sometimes present.
-- Low: some appropriate analysis but is RELIANT ON DESCRIPTION; evaluation of how features shape meaning is largely absent.
+- **Where bands differ:** **High vs mid** — turns on **evaluation** (how/why an authorial choice **achieves** its effect) and on **broader** moves that **tie** several choices or **effects** together. **Mid vs low** — turns on **competent identification and explanation** of **effects** (and techniques): the **mid** response does this **competently** in much of the essay; the **low** response **does not** (often **incorrect**, thin, or lost in **literal** summary).
+- High: **Good evaluation of effects** in **many** places; awareness of **broader authorial strategies** to create meaning, plus **some genuine insight** and explanation of how effects are produced. Does **not** need evaluation on every occasion or in every paragraph.
+- Mid: **Competent** **identification and explanation** of **effects** (hence **above** low), but **evaluation** of how those effects are **achieved** is **inconsistent**; the **stronger and more frequent** the evaluative work, the **higher** the position **within the mid band**.
+- Low: **Much** description or summarising of **literal** plot or meaning; only **some** analysis and effect identification, often **not competent**; **sometimes incorrect**; **almost no evaluation** of how authorial choices **produce** the effects named.
 
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
@@ -756,7 +775,7 @@ Criterion D — Language
 - Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and highly distracting at times.
 
 PRINCIPAL BENCHMARK — HOLISTIC IMPRESSION (mandatory anchor):
-For each criterion, treat **overallImpression** (band, position, confidence, and the **wording of the holistic note**, including any [SHIFT: …] logic from reading) as the **main** determinant of the mark. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
+For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
 
 SECONDARY ADJUSTMENT — READING NOTES + ANNOTATIONS:
 Use **reasoning, concerns, feeling**, and **annotations** to **raise or lower** the mark **only when** there is a **clear, repeated pattern** that **does not fit** the holistic call (e.g. many more negative markers than the holistic note suggests, or sustained strengths the holistic note underplayed). Small local noise should not override holistic. When you adjust, say so plainly in the justification (without meta-phrases like "the overallImpression field").
@@ -1261,12 +1280,12 @@ const ANNOTATION_META = {
   A_QUESTION: { label: 'A?',   title: 'Criterion A — Tenuous or unconvincing reasoning; relationship between evidence and claim unclear' },
   A_CURVY:    { label: 'A~',   title: 'Criterion A — Not the best evidence choice to support this point' },
   A_EXCLAIM:  { label: 'A!',   title: 'Criterion A — Understands local meaning but not the broader meaning of the text' },
-  B_STAR:     { label: 'B★',   title: 'Criterion B — Devices related to each other and the text\'s larger argument; not in isolation' },
-  B_CHECK:    { label: 'B✓',   title: 'Criterion B — Identifies WHAT, WHY, and HOW: device, effectiveness, and meaning' },
+  B_STAR:     { label: 'B★',   title: 'Criterion B — Evaluates how this authorial choice achieves effect, or weaves several choices / broader authorial pattern' },
+  B_CHECK:    { label: 'B✓',   title: 'Criterion B — Identifies a technique and describes the effect correctly' },
   B_D:        { label: 'BD',   title: 'Criterion B — Plot/description only: no analysis of how any device affects meaning; worse than B∅ (no evaluation of how effect is achieved)' },
-  B_CROSS:    { label: 'B✗',   title: 'Criterion B — Device label incorrect, conflated, or applied to wrong element' },
+  B_CROSS:    { label: 'B✗',   title: 'Criterion B — Technique named but effect wrong/contradictory, or device/label wrong or misapplied' },
   B_QUESTION: { label: 'B?',   title: 'Criterion B — Connection between device and meaning is tenuous or simply asserted' },
-  B_NO_EVAL:  { label: 'B∅',   title: 'Criterion B — Evaluation absent: tells effect but not how it is achieved' },
+  B_NO_EVAL:  { label: 'B∅',   title: 'Criterion B — No evaluation of how the effect is achieved; may co-occur on same span as B✓' },
   B_UNSUP:    { label: 'B⚠',   title: 'Criterion B — Relies on personal/historical/trivia associations not in the text' },
   B_BR:       { label: 'BBR',  title: 'Criterion B — No effect on audience/reader: drama — no impact on stage/spectator; poetry/prose — no impact on reader' },
   C_CHECK:    { label: 'C✓',   title: 'Criterion C — Clearly focused; connects to topic sentence or prior argument' },
@@ -1519,6 +1538,22 @@ function renderBandPositionBar(band, position) {
   return `<span class="rp-bandpos" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Within band: ${word} third, ${pos} of 3`)}">${segs}</span>`;
 }
 
+/** Holistic pass tier change vs prior snapshot (-1 / 0 / +1) for UI chip. */
+function renderHolisticShiftChip(shift) {
+  const s = normalizeHolisticShift(shift);
+  const label =
+    s === 1 ? 'Shift: up one tier vs prior (this pass)' :
+    s === -1 ? 'Shift: down one tier vs prior (this pass)' :
+    'Shift: hold (no band/position change this pass)';
+  if (s === 0) {
+    return `<span class="rp-overall-shift rp-overall-shift--0" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">0</span>`;
+  }
+  if (s === 1) {
+    return `<span class="rp-overall-shift rp-overall-shift--p1" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">+1</span>`;
+  }
+  return `<span class="rp-overall-shift rp-overall-shift--m1" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">−1</span>`;
+}
+
 /** Render overallImpression into the dedicated right-hand box. */
 function updateOverallImpressionBox(notes) {
   const el = $('readingPanelOverall');
@@ -1527,13 +1562,14 @@ function updateOverallImpressionBox(notes) {
   const rows = ['A', 'B', 'C', 'D']
     .filter(k => oi[k]?.band && oi[k].band !== 'unknown')
     .map(k => {
-      const { band, position, confidence, note } = oi[k];
+      const { band, position, confidence, note, shift } = oi[k];
       const confLabel = confidence === 'unknown' ? '' : confidence;
       return `<div class="rp-overall-crit-block">
         <div class="rp-overall-crit-header">
           <span class="rp-feeling-crit rp-feeling-crit--${k.toLowerCase()}">${k}</span>
           <span class="rp-overall-band rp-overall-band--${band}">${band}</span>
           ${renderBandPositionBar(band, position)}
+          ${renderHolisticShiftChip(shift ?? 0)}
           ${confLabel ? `<span class="rp-overall-conf">${confLabel} confidence</span>` : ''}
         </div>
         ${note ? `<p class="rp-overall-crit-note">${escapeHtml(note)}</p>` : ''}
@@ -1805,13 +1841,14 @@ function showDetailModal() {
       const rows = ['A', 'B', 'C', 'D']
         .filter(k => oi[k]?.band && oi[k].band !== 'unknown')
         .map(k => {
-          const { band, position, confidence, note } = oi[k];
+          const { band, position, confidence, note, shift } = oi[k];
           const confLabel = confidence === 'unknown' ? '' : confidence;
           return `<div class="rp-overall-crit-block">
             <div class="rp-overall-crit-header">
               <span class="rp-feeling-crit rp-feeling-crit--${k.toLowerCase()}">${k}</span>
               <span class="rp-overall-band rp-overall-band--${band}">${band}</span>
               ${renderBandPositionBar(band, position)}
+              ${renderHolisticShiftChip(shift ?? 0)}
               ${confLabel ? `<span class="rp-overall-conf">${confLabel} confidence</span>` : ''}
             </div>
             ${note ? `<p class="rp-overall-crit-note">${escapeHtml(note)}</p>` : ''}
