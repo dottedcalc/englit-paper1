@@ -3817,7 +3817,7 @@ textarea {
   font-style: italic;
 }
 
-/* Holistic pass shift (-1 / 0 / +1) from JSON, shown next to position bar */
+/* Holistic pass shift (-1 / 0 / +1 / unknown) from JSON, shown next to position bar */
 .rp-overall-shift {
   display: inline-flex;
   align-items: center;
@@ -3846,6 +3846,12 @@ textarea {
   color: #991b1b;
   background: #fee2e2;
   border-color: #fca5a5;
+}
+.rp-overall-shift--unk {
+  color: #6b7280;
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  font-weight: 700;
 }
 
 /* Holistic impression: 3 within-band tiers (lower / middle / upper) — gray segments, blue fill */

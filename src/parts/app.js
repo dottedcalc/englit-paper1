@@ -135,7 +135,7 @@ async function withRetry(fn, { label = 'op', tries = 3, baseMs = 1200 } = {}) {
  * TOTAL WORD BUDGET: ≤ 300 words across all fields at all times.
  * The reader must compress or merge earlier notes when the budget is tight.
  */
-const EMPTY_BAND = { band: 'unknown', position: 0, confidence: 'unknown', note: '', shift: 0 };
+const EMPTY_BAND = { band: 'unknown', position: 0, confidence: 'unknown', note: '', shift: 'unknown' };
 function initialNotes() {
   return {
     thesis: '',
@@ -214,8 +214,8 @@ const OI_BAND_OBJ_SCHEMA = {
     position:   { type: 'INTEGER' },
     confidence: { type: 'STRING', enum: ['high', 'medium', 'low', 'unknown'] },
     note:       { type: 'STRING' },
-    /** -1 = down one tier vs prior band+position anchor; 0 = hold; +1 = up one tier (may change band+position) */
-    shift:      { type: 'INTEGER', enum: [-1, 0, 1] },
+    /** String enum for Gemini (integer enums break API validation). "unknown" = cannot judge tier move yet or holistic not formed. */
+    shift:      { type: 'STRING', enum: ['-1', '0', '1', 'unknown'] },
   },
   required: ['band', 'position', 'confidence', 'note', 'shift'],
 };
@@ -328,7 +328,7 @@ Notes fields (update and return as "notes" in your response):
 • concerns — Short list of MACRO-level concerns about the essay as a whole — structural, argumentative, or interpretive issues that affect the overall quality across multiple paragraphs, not local slips or single-sentence observations. Each entry ≤12 words. Only add an entry when a pattern or essay-wide problem has become clear.
 • feeling — LOCAL impression from recent chunks only. Four fields — A, B, C, D — each a 1–2 sentence note on what the current and immediately preceding chunks show: what is working, what is not. Update freely each chunk. Leave "" if nothing observed yet for that criterion.
 
-• overallImpression — NOT part of this response. A separate dedicated pass (every two reading chunks) updates holistic bands, positions, confidence, and cumulative notes using your thesis/reasoning/feeling/etc., all annotations so far, and the prior holistic snapshot. Focus this call on chunk notes + annotations only.
+• overallImpression — NOT part of this response. A separate dedicated pass (every two reading chunks, **only after ~15% of the essay** has been read) updates holistic bands, positions, confidence, and cumulative **shift** using your thesis/reasoning/feeling/etc., all annotations so far, and the prior holistic snapshot. Focus this call on chunk notes + annotations only.
 
 ESSAY STRUCTURE AWARENESS:
 Essays will have an introduction, body paragraphs, and a conclusion. Treat these differently in your reasoning:
@@ -472,12 +472,27 @@ function annotationsForHolisticPrompt(allAnnotations) {
   }));
 }
 
-function normalizeHolisticShift(raw) {
+/**
+ * @returns {-1|0|1|'unknown'}
+ */
+function normalizeHolisticShift(raw, priorBand) {
+  if (raw === null || raw === undefined || raw === '') {
+    return priorBand === 'unknown' || priorBand == null ? 'unknown' : 0;
+  }
+  if (typeof raw === 'string') {
+    const t = raw.trim().toLowerCase();
+    if (t === 'unknown' || t === 'unk') return 'unknown';
+    if (t === '-1' || t === '−1' || t === 'minus_one' || t === 'm1') return -1;
+    if (t === '0' || t === 'zero' || t === 'hold' || t === 'none') return 0;
+    if (t === '1' || t === '+1' || t === 'plus_one' || t === 'p1') return 1;
+  }
   const n = Number(raw);
-  if (!Number.isFinite(n) || n === 0) return 0;
-  if (n > 0) return 1;
-  if (n < 0) return -1;
-  return 0;
+  if (Number.isFinite(n)) {
+    if (n === 0) return 0;
+    if (n > 0) return 1;
+    if (n < 0) return -1;
+  }
+  return priorBand === 'unknown' || priorBand == null ? 'unknown' : 0;
 }
 
 function mergeHolisticOverallImpression(prior, parsed) {
@@ -487,8 +502,13 @@ function mergeHolisticOverallImpression(prior, parsed) {
   const out = { ...base };
   for (const k of ['A', 'B', 'C', 'D']) {
     if (!raw[k] || typeof raw[k] !== 'object') continue;
+    const priorBand = (base[k] ?? EMPTY_BAND).band ?? 'unknown';
     const merged = { ...EMPTY_BAND, ...(base[k] ?? {}), ...raw[k] };
-    merged.shift = normalizeHolisticShift(merged.shift);
+    merged.shift = normalizeHolisticShift(merged.shift, merged.band);
+    // First time band becomes high/mid/low: no prior rung — tier change vs snapshot is "hold" (0), not +1/−1.
+    if (priorBand === 'unknown' && merged.band && merged.band !== 'unknown') {
+      merged.shift = 0;
+    }
     out[k] = merged;
   }
   return out;
@@ -506,7 +526,7 @@ function buildHolisticChunkWindowMarkdown(chunks, paraStartSet, chunkIndexEnd) {
 }
 
 /**
- * System prompt for the dedicated holistic-impression API pass (runs every 2 reading chunks).
+ * System prompt for the dedicated holistic-impression API pass (runs every 2 reading chunks, only once ≥~15% of the essay is read).
  * @param {number} chunkIndexEnd  — 0-based index of the chunk just finished
  * @param {number} totalChunks
  */
@@ -514,15 +534,15 @@ function buildHolisticImpressionSystemPrompt(chunkIndexEnd, totalChunks) {
   const pct = Math.round(((chunkIndexEnd + 1) / totalChunks) * 100);
   return `You are an IB English A Paper 1 examiner on a DEDICATED pass. Return ONLY an updated "overallImpression" object for A, B, C, and D.
 
-This pass runs after every TWO sequential reading chunks (and also after the final chunk if the count is odd). You synthesise: accumulated notes, ALL annotations so far, the last one–two student essay chunks, the source passage, and the PRIOR overallImpression snapshot.
+This pass is scheduled after every TWO sequential reading chunks (and also after the final chunk if the count is odd), **but the app does not invoke it until at least ~15% of the essay (by chunk count) has been read** — a defensible overall impression of quality is not formed before that. Until then, the prior snapshot stays at band **unknown** and **shift** **unknown**. You synthesise: accumulated notes, ALL annotations so far, the last one–two student essay chunks, the source passage, and the PRIOR overallImpression snapshot.
 
-READING POSITION FOR THIS UPDATE: chunk ${chunkIndexEnd + 1} of ${totalChunks} completed (~${pct}% through by chunk count).
+READING POSITION FOR THIS UPDATE: chunk ${chunkIndexEnd + 1} of ${totalChunks} completed (~${pct}% through by chunk count). You are past the ~15% threshold.
 
 Each criterion A–D must include:
   - "band": "high", "mid", "low", or "unknown" if too early
   - "position": integer 1–3 within that band vs IB descriptors — 1 = lower third, 2 = middle third, 3 = upper third; if band is "unknown", position 0
   - "confidence": "high", "medium", "low", or "unknown"
-  - "shift": integer **-1**, **0**, or **+1** only (see step 3) — this is a **dedicated field for the UI**; do not encode shift only inside the "note" text.
+  - "shift": string, exactly **"-1"**, **"0"**, **"1"**, or **"unknown"** (see step 3) — **required** field for the app UI; do not encode shift only inside the "note" text. Use the JSON string **"-1"** (not unquoted -1) so the value is always one of the four allowed strings.
   - "note": follow the four-step workflow below (prose only—**do not** append [SHIFT: …] tags to the note; **shift** is its own key)
 
 WHEN "band" is **high** — **position 2 or 3** (middle or upper within high):
@@ -542,9 +562,10 @@ STEP 2 — ADD NEW OBSERVATIONS (this criterion only)
 • Good and bad both belong here when evidence exists.
 
 STEP 3 — **shift** in JSON, **band/position** vs the PRIOR rung (not free-floating)
-• **Anchor = THIS rung (mandatory):** The **current** snapshot **band** and **position** (the prior holistic values you are about to update) are **THIS** rung. Look up the **HIGH / MID / LOW** line for that **band** (below) and ask what the lower / middle / upper third (**position 1 / 2 / 3**) means for **this** letter. The quality bar for **this** pass is **the standard implied by THIS band+position together** — not a free-floating idea of a "good" essay, not an aspirational bar from another band.
-• **Compare to THIS:** Weigh the **new** material (the last two chunks, annotations, and accumulated notes) against **THAT** implied standard. Does recent+overall evidence show the student **sustainedly above** THIS rung, **about** on it, or **below** it (with **consistent** support — not a single outlier line)?
-• **Set the "shift" field (required; schema for the app UI):** Every A–D object must include a numeric **"shift"** key with exactly **+1**, **0**, or **-1**. The app renders this in the UI; it does **not** infer shift from prose or from anything at the "end" of a message. **+1** = one **net** step up the ladder (e.g. within-band tier up, or into the next band); **-1** = one **net** step down; **0** = **no change** to **band** and **position** this pass (tweak **confidence** in the note if the picture sharpens or blurs, and explain in prose if needed). **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose (steps 1–2) plus your reasoning, without duplicating shift as bracket text.
+• **First impression vs later passes:** If the **prior** snapshot has **band** **"unknown"** and this pass is the **first** where you set **band** to **high** / **mid** / **low** for that criterion, you are **forming the first rung** — there is no prior rung to move from. You **must** set **"shift"** to **"0"** (default hold). **Do not** use **"1"** or **"-1"** on that first formation pass. While **band** stays **unknown**, keep **"shift"** as **"unknown"**. On **later** passes (prior **band** already high/mid/low), compare to **THIS** rung and set **"shift"** to **"1"**, **"0"**, **"-1"**, or, rarely, **"unknown"** if not judgable.
+• **Anchor = THIS rung (mandatory) once band is known:** The **current** snapshot **band** and **position** (the prior holistic values) are **THIS** rung. Look up the **HIGH / MID / LOW** line (below) and interpret **position 1 / 2 / 3** for **this** letter. The quality bar is **the standard implied by THIS band+position together** — not a free-floating idea of a "good" essay, not an aspirational bar from another band.
+• **Compare to THIS:** Weigh the **new** material (the last two chunks, annotations, and accumulated notes) against **THAT** implied standard. Does recent+overall evidence show the student **sustainedly above** THIS rung, **about** on it, or **below** it (with **consistent** support — not a single outlier line)? If the prior rung is known and you still cannot judge net movement this pass, **"shift"** may be **"unknown"** (rare after ~15% read; prefer a best judgment when possible).
+• **Set the "shift" field (required; schema for the app UI):** String **"1"** (up one net tier), **"0"** (hold, including **default on first** band+position formation from **unknown**), **"-1"** (down one net tier), or **"unknown"** (band still **unknown**, or tier move not judgable). The app reads **only** this key. **"1"** = one **net** step up; **"-1"** = one **net** step down; **"0"** = **no** net tier change **or** first-time establishment of a rung. **Do not** put [SHIFT: …] in the **note**; the **note** is analytical prose (steps 1–2) plus your reasoning, without duplicating shift as bracket text.
 • **One tier per pass** by default: do not jump several rungs unless the last two chunks are overwhelmingly sustained; prefer a single +1, -1, or 0. Boundary crosses (e.g. mid upper → high lower) are still **one** net step and match **+1** or **-1** as appropriate, with **band** and **position** updated to match.
 
 STEP 4 — ASSIGN / KEEP BANDS (unchanged logic except as driven by step 3)
@@ -583,9 +604,9 @@ Criterion D — Language
 - Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
 - Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and distracting at times.
 
-CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants **shift: +1** or a band jump unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive **+1**.
+CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants **"shift"**: **"1"** or a band jump unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive **"1"**.
 
-Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (integer: -1, 0, or +1 only), and **note** (string, no [SHIFT: …] suffix). No markdown. No other keys.`;
+Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (string: **"-1"**, **"0"**, **"1"**, or **"unknown"** only), and **note** (string, no [SHIFT: …] suffix). No markdown. No other keys.`;
 }
 
 /**
@@ -637,7 +658,7 @@ ${JSON.stringify(annotationsForHolisticPrompt(allAnnotations), null, 2)}`;
 
 /**
  * Run the full sequential reading pass over the student's essay.
- * One API call per chunk for notes + annotations; a second call every 2 chunks for holistic impression only.
+ * One API call per chunk for notes + annotations; a second call every 2 chunks for holistic impression, **only after ~15% of chunks** have been read (impression not meaningful before that).
  *
  * @param {{ onBefore?: Function, onAfter?: Function, onHolisticBefore?: Function, onHolisticAfter?: Function }} [callbacks]
  *   onBefore(chunkIdx, totalChunks, currentNotes) — before reading chunk i
@@ -664,7 +685,11 @@ async function readEssaySequentiallyFromChunks(sourceText, chunks, paraStartSet,
     allAnnotations.push(...chunkAnns);
 
     const runHolistic = (i + 1) % 2 === 0 || i === chunks.length - 1;
-    if (runHolistic) {
+    /** Meaningful holistic (band/position/shift) only after ~15–20% of the essay; prior passes stay initial (e.g. shift unknown). */
+    const chunkPct = (i + 1) / chunks.length;
+    const holisticMinPct = 0.15;
+    const doHolistic = runHolistic && chunkPct >= holisticMinPct;
+    if (doHolistic) {
       if (onHolisticBefore) onHolisticBefore(i, chunks.length, notes);
       const oi = await updateHolisticImpressionPass(
         sourceText,
@@ -775,7 +800,7 @@ Criterion D — Language
 - Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and highly distracting at times.
 
 PRINCIPAL BENCHMARK — HOLISTIC IMPRESSION (mandatory anchor):
-For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
+For each criterion, treat **overallImpression** (band, position, confidence, the **shift** field from the last holistic pass, and the **wording of the holistic note**) as the **main** determinant of the mark. If **shift** is **"unknown"** (holistic or tier move not yet judgable), rely on **band**, **position**, and the **note**; do not treat **unknown** as a directional signal. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
 
 SECONDARY ADJUSTMENT — READING NOTES + ANNOTATIONS:
 Use **reasoning, concerns, feeling**, and **annotations** to **raise or lower** the mark **only when** there is a **clear, repeated pattern** that **does not fit** the holistic call (e.g. many more negative markers than the holistic note suggests, or sustained strengths the holistic note underplayed). Small local noise should not override holistic. When you adjust, say so plainly in the justification (without meta-phrases like "the overallImpression field").
@@ -1538,13 +1563,17 @@ function renderBandPositionBar(band, position) {
   return `<span class="rp-bandpos" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Within band: ${word} third, ${pos} of 3`)}">${segs}</span>`;
 }
 
-/** Holistic pass tier change vs prior snapshot (-1 / 0 / +1) for UI chip. */
-function renderHolisticShiftChip(shift) {
-  const s = normalizeHolisticShift(shift);
+/** Holistic pass tier change vs prior snapshot (-1 / 0 / +1) or unknown — UI chip. */
+function renderHolisticShiftChip(shift, band) {
+  const s = normalizeHolisticShift(shift, band);
   const label =
+    s === 'unknown' ? 'Shift: not determined yet (or holistic/tier move not judgable for this pass)' :
     s === 1 ? 'Shift: up one tier vs prior (this pass)' :
     s === -1 ? 'Shift: down one tier vs prior (this pass)' :
     'Shift: hold (no band/position change this pass)';
+  if (s === 'unknown') {
+    return `<span class="rp-overall-shift rp-overall-shift--unk" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">?</span>`;
+  }
   if (s === 0) {
     return `<span class="rp-overall-shift rp-overall-shift--0" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">0</span>`;
   }
@@ -1569,7 +1598,7 @@ function updateOverallImpressionBox(notes) {
           <span class="rp-feeling-crit rp-feeling-crit--${k.toLowerCase()}">${k}</span>
           <span class="rp-overall-band rp-overall-band--${band}">${band}</span>
           ${renderBandPositionBar(band, position)}
-          ${renderHolisticShiftChip(shift ?? 0)}
+          ${renderHolisticShiftChip(shift, band)}
           ${confLabel ? `<span class="rp-overall-conf">${confLabel} confidence</span>` : ''}
         </div>
         ${note ? `<p class="rp-overall-crit-note">${escapeHtml(note)}</p>` : ''}
@@ -1848,7 +1877,7 @@ function showDetailModal() {
               <span class="rp-feeling-crit rp-feeling-crit--${k.toLowerCase()}">${k}</span>
               <span class="rp-overall-band rp-overall-band--${band}">${band}</span>
               ${renderBandPositionBar(band, position)}
-              ${renderHolisticShiftChip(shift ?? 0)}
+              ${renderHolisticShiftChip(shift, band)}
               ${confLabel ? `<span class="rp-overall-conf">${confLabel} confidence</span>` : ''}
             </div>
             ${note ? `<p class="rp-overall-crit-note">${escapeHtml(note)}</p>` : ''}
