@@ -152,7 +152,7 @@ function initialNotes() {
 const ANNOTATION_TYPES = [
   'A_STAR','A_CHECK','A_CROSS','A_QUESTION','A_CURVY','A_EXCLAIM',
   'B_STAR','B_CHECK','B_D','B_CROSS','B_QUESTION','B_NO_EVAL','B_UNSUP','B_BR',
-  'C_CHECK','C_CROSS','C_QUESTION','C_SIGNPOST','C_S','C_DRIFT','C_ICP',
+  'C_STAR','C_CHECK','C_CROSS','C_QUESTION','C_SIGNPOST','C_S','C_DRIFT','C_ICP',
   'D_SP','D_AWK','D_WC','D_GRA','D_CHECK','D_V','D_CROSS','D_R',
 ];
 
@@ -378,7 +378,7 @@ A_EXCLAIM  !  Understands local meaning and implications but not the broader mea
 ── Criterion B (Stylistic Features) ──
 B_STAR     ★  Strong **evaluation of HOW** this authorial choice achieves its effect; **or** ties **several** authorial choices together to evaluate implications; **or** works at a **broader** authorial pattern (not a star for mere labelling, even if correct)
 B_CHECK    ✓  Identifies a technique and **describes the effect correctly** (accurate name + effect; may be shallow — **does not** require full "how" evaluation; that is B★ vs B∅)
-B_D        D  Describes or summarises plot (or surface content) without analysing how any device shapes meaning or affects the reader — worse than B_NO_EVAL (∅), which at least gestures at effect
+B_D        D  **Plot / description in place of analysis** — where **stylistic or authorial analysis is expected** (e.g. a body sentence that should unpack a device, mechanism, or effect), the student only **narrates, paraphrases, or summarises** with **no** analysis of how any feature shapes meaning or affects the reader — worse than B_NO_EVAL (∅), which at least gestures at effect. **Do not** mark every passing description: brief **summary or orientation at the end of a paragraph** (or similar closure) is often **acceptable** and **not** a D unless the whole **argumentative** move there was meant to be analytical.
 B_CROSS    ✗  Identifies a technique but the effect is described **contradictorily** or **incorrectly**; or device/label is **wrong**, **conflated**, or **applied to the wrong element**
 B_QUESTION ?  Connection between device and meaning is tenuous, unsupported, or simply asserted
 B_NO_EVAL  ∅  **How** the authorial choice achieves the effect is **not evaluated** (mechanism absent). **May be used on the same anchor as B_CHECK** (two annotations, same 3–8 word span): the student **correctly** names technique and effect, but does **not** explain how the choice produces that effect — use both **B_CHECK** and **B_NO_EVAL** in that case.
@@ -386,6 +386,7 @@ B_UNSUP    ⚠  Relies on personal/historical/trivia associations not within the
 B_BR       BR  Fails to connect the device to its effect on the audience/reader — for drama: no effect on stage or spectator; for poetry/prose: no effect on the reader
 
 ── Criterion C (Focus & Organisation) ──
+C_STAR     ★  **Effective organisation** that **mirrors** the essay's **line of reasoning**; **highly focused** — paragraph (or section) stays **tightly within the topic sentence's scope** and is **extremely clear** end-to-end; **evidence** is **selective, substantive, and detailed** rather than **over-fragmented** or a scatter of thin points. **Reserve for** structural quality **clearly above** a routine **C_CHECK** (✓).
 C_CHECK    ✓  Clearly focused; connects to topic sentence or prior argument
 C_CROSS    ✗  Contradiction with a prior claim or the thesis
 C_QUESTION ?  Focus is breaking down; stream-of-consciousness; main point is hard to follow. When evaluating C, consult your current reasoning notes — if the argument map shows the essay has already covered this territory or is wandering without clear direction, this annotation is appropriate.
@@ -594,9 +595,12 @@ Criterion B — Analysis and Interpretation
 
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
-- High: presentation is effectively organised and coherent; analysis is WELL FOCUSED throughout.
-- Mid: presentation is adequately organised in a generally coherent manner; SOME focus in the analysis.
-- Low: ONLY SOME organisation apparent; LITTLE focus in the analysis.
+- **What "effective organisation" means (C):** **Mirrors** and **sustains** an **argument** — a **line of reasoning** in which **paragraphs** and **moves** **build** a **thesis**-led **case**. It is **not** the same as **covering** the source text **in chronological** (or **sequential** / **blow-by-blow**) **order**; that pattern can be **narrative** **tracking** with **mediocre** **C** even when the order feels **tidy**.
+- **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**.
+- **High vs mid (contrast):** **High** requires **sustained** **effective** organisation and/or **strong, consistent focus** across the essay. The **mirror** of the **line of reasoning** (how paragraphs **track** the **thesis** and **build**) should be **clear**; the **span** of what the essay tries to do (scope) must **not** be **so broad** that the argument **thins** or **diffuses** — high is **disciplined** in **breadth** as well as **clarity**. **Mid** is **weaker** on all of this: it is only **generally** coherent, with **only** **some** **focus** and **local** **drifts** or **fragments**; the structure is **not** **extremely** **clear** or **tight**, but it remains **understandable** and **not** **confusing**; it does **not** show the **sustained** **effectiveness** and **clarity of mirror** of high, yet it is **not** **largely** **contradictory** (that leans **low**).
+- High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. (Does not require mechanical perfection in every line.)
+- Mid: **Generally** **coherent** **structure** and **some** **focus**, but with **notable** **drifts**, **loose** **joins**, or **fragmented** **moments**; organisation is **not** **extremely** **clear** or **tight** and **not** as **effectively** **sustained** as high, yet the reader can **follow**; **not** **confusing** and **not** **self-contradicting** in the way that characterises **low**. This is the **"some discipline, but patchy"** band.
+- Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**.
 
 Criterion D — Language
 - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
@@ -789,9 +793,12 @@ Criterion B — Analysis and Interpretation
 
 Criterion C — Focus and Organisation
 - Key question: How well organised, coherent and focused is the presentation of ideas?
-- High: presentation is effectively organised and coherent; analysis is WELL FOCUSED throughout.
-- Mid: presentation is adequately organised in a generally coherent manner; SOME focus in the analysis.
-- Low: SOME organisation apparent; LITTLE focus in the analysis.
+- **What "effective organisation" means (C):** **Mirrors** and **sustains** an **argument** — a **line of reasoning** in which **paragraphs** and **moves** **build** a **thesis**-led **case**. It is **not** the same as **covering** the source text **in chronological** (or **sequential** / **blow-by-blow**) **order**; that pattern can be **narrative** **tracking** with **mediocre** **C** even when the order feels **tidy**.
+- **Position 1 / 2 / 3 (within band):** Reflects the **extent** of what you see in **reasoning** and the holistic note: **tighter** **organisational discipline**, **sustained focus**, and **clearer** **argument structure** (scope under control) → **higher** **position** within the band. Broader, looser, or more **fragmented** **coverage** of the same band → **lower** **position**.
+- **High vs mid (contrast):** **High** requires **sustained** **effective** organisation and/or **strong, consistent focus** across the essay. The **mirror** of the **line of reasoning** (how paragraphs **track** the **thesis** and **build**) should be **clear**; the **span** of what the essay tries to do (scope) must **not** be **so broad** that the argument **thins** or **diffuses** — high is **disciplined** in **breadth** as well as **clarity**. **Mid** is **weaker** on all of this: it is only **generally** coherent, with **only** **some** **focus** and **local** **drifts** or **fragments**; the structure is **not** **extremely** **clear** or **tight**, but it remains **understandable** and **not** **confusing**; it does **not** show the **sustained** **effectiveness** and **clarity of mirror** of high, yet it is **not** **largely** **contradictory** (that leans **low**).
+- High: **Sustained** **effective** organisation and/or **high** **focus** in **most** of the essay; the **line of reasoning** (how the argument **unfolds** and **connects** to the thesis) is **evident** and **the mirror is clear**; **scope** is **controlled** — **not** **over-broad** in a way that blurs the argument. (Does not require mechanical perfection in every line.)
+- Mid: **Generally** **coherent** **structure** and **some** **focus**, but with **notable** **drifts**, **loose** **joins**, or **fragmented** **moments**; organisation is **not** **extremely** **clear** or **tight** and **not** as **effectively** **sustained** as high, yet the reader can **follow**; **not** **confusing** and **not** **self-contradicting** in the way that characterises **low**. This is the **"some discipline, but patchy"** band.
+- Low: **Little** coherent organisation or **sustained** **focus**; the **line of argument** is **hard** to see; may **contradict** the thesis, **wander** badly, or read as **largely** **disconnected** / **chronology without argument**.
 
 Criterion D — Language
 - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
@@ -1307,12 +1314,13 @@ const ANNOTATION_META = {
   A_EXCLAIM:  { label: 'A!',   title: 'Criterion A — Understands local meaning but not the broader meaning of the text' },
   B_STAR:     { label: 'B★',   title: 'Criterion B — Evaluates how this authorial choice achieves effect, or weaves several choices / broader authorial pattern' },
   B_CHECK:    { label: 'B✓',   title: 'Criterion B — Identifies a technique and describes the effect correctly' },
-  B_D:        { label: 'BD',   title: 'Criterion B — Plot/description only: no analysis of how any device affects meaning; worse than B∅ (no evaluation of how effect is achieved)' },
+  B_D:        { label: 'BD',   title: 'Criterion B — Description/summary where analysis is expected (not for every line; end-of-paragraph summary often OK). No analysis of how devices affect meaning; worse than B∅' },
   B_CROSS:    { label: 'B✗',   title: 'Criterion B — Technique named but effect wrong/contradictory, or device/label wrong or misapplied' },
   B_QUESTION: { label: 'B?',   title: 'Criterion B — Connection between device and meaning is tenuous or simply asserted' },
   B_NO_EVAL:  { label: 'B∅',   title: 'Criterion B — No evaluation of how the effect is achieved; may co-occur on same span as B✓' },
   B_UNSUP:    { label: 'B⚠',   title: 'Criterion B — Relies on personal/historical/trivia associations not in the text' },
   B_BR:       { label: 'BBR',  title: 'Criterion B — No effect on audience/reader: drama — no impact on stage/spectator; poetry/prose — no impact on reader' },
+  C_STAR:     { label: 'C★',   title: 'Criterion C — Organisation mirrors the argument line; highly focused, clear scope, selective detailed evidence (above C✓)' },
   C_CHECK:    { label: 'C✓',   title: 'Criterion C — Clearly focused; connects to topic sentence or prior argument' },
   C_CROSS:    { label: 'C✗',   title: 'Criterion C — Contradiction with a prior claim or the thesis' },
   C_QUESTION: { label: 'C?',   title: 'Criterion C — Focus breaking down; stream-of-consciousness; main point hard to follow' },
