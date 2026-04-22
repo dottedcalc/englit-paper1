@@ -7,11 +7,11 @@ IB ENGLISH A — PAPER 1 (LITERATURE HL): EXAMINER TRAINING BACKGROUND
 ═══════════════════════════════════════════════════════════════════════════════
 
 All responses to IB Paper 1 (Literature HL) are marked against four criteria,
-each scored out of 5, for a maximum total of 20 marks.
+each scored on a 0–5 scale, for a maximum total of 20 marks (four criteria × up to 5 each).
 
 This is a 75-minute unseen essay, not a polished assignment. Occasional errors
 in an otherwise controlled response should not automatically lower the band —
-it is the PATTERN across the response that determines the score.
+it is the PATTERN across the response that determines the score; holistic impression is the primary anchor for final marks, with notes and annotations used to adjust when patterns clearly disagree.
 
 ───────────────────────────────────────────────────────────────────────────────
 CRITERION A — KNOWLEDGE AND UNDERSTANDING

@@ -84,6 +84,14 @@ function studentEssaySig(studentText) {
     .trim();
 }
 
+/** Holistic within-band position: 1–3 (lower/middle/upper). Legacy saved values of 4 map to 3. */
+function normalizeHolisticPosition(raw) {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (n >= 4) return 3;
+  return clampInt(n, 1, 3);
+}
+
 function clampInt(n, lo, hi) {
   const x = Number(n);
   if (!Number.isFinite(x)) return lo;
@@ -144,7 +152,7 @@ function initialNotes() {
 const ANNOTATION_TYPES = [
   'A_STAR','A_CHECK','A_CROSS','A_QUESTION','A_CURVY','A_EXCLAIM',
   'B_STAR','B_CHECK','B_D','B_CROSS','B_QUESTION','B_NO_EVAL','B_UNSUP','B_BR',
-  'C_CHECK','C_CROSS','C_QUESTION','C_SIGNPOST','C_S','C_DRIFT',
+  'C_CHECK','C_CROSS','C_QUESTION','C_SIGNPOST','C_S','C_DRIFT','C_ICP',
   'D_SP','D_AWK','D_WC','D_GRA','D_CHECK','D_V','D_CROSS','D_R',
 ];
 
@@ -178,18 +186,8 @@ const READ_CHUNK_SCHEMA = {
           },
           required: ['A', 'B', 'C', 'D'],
         },
-        overallImpression: {
-          type: 'OBJECT',
-          properties: {
-            A: { type: 'OBJECT', properties: { band: { type: 'STRING', enum: ['high','mid','low','unknown'] }, position: { type: 'INTEGER' }, confidence: { type: 'STRING', enum: ['high','medium','low','unknown'] }, note: { type: 'STRING' } }, required: ['band','position','confidence','note'] },
-            B: { type: 'OBJECT', properties: { band: { type: 'STRING', enum: ['high','mid','low','unknown'] }, position: { type: 'INTEGER' }, confidence: { type: 'STRING', enum: ['high','medium','low','unknown'] }, note: { type: 'STRING' } }, required: ['band','position','confidence','note'] },
-            C: { type: 'OBJECT', properties: { band: { type: 'STRING', enum: ['high','mid','low','unknown'] }, position: { type: 'INTEGER' }, confidence: { type: 'STRING', enum: ['high','medium','low','unknown'] }, note: { type: 'STRING' } }, required: ['band','position','confidence','note'] },
-            D: { type: 'OBJECT', properties: { band: { type: 'STRING', enum: ['high','mid','low','unknown'] }, position: { type: 'INTEGER' }, confidence: { type: 'STRING', enum: ['high','medium','low','unknown'] }, note: { type: 'STRING' } }, required: ['band','position','confidence','note'] },
-          },
-          required: ['A', 'B', 'C', 'D'],
-        },
       },
-      required: ['thesis', 'reasoning', 'readerState', 'concerns', 'feeling', 'overallImpression'],
+      required: ['thesis', 'reasoning', 'readerState', 'concerns', 'feeling'],
     },
     annotations: {
       type: 'ARRAY',
@@ -207,6 +205,35 @@ const READ_CHUNK_SCHEMA = {
     },
   },
   required: ['notes', 'annotations'],
+};
+
+const OI_BAND_OBJ_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    band:       { type: 'STRING', enum: ['high', 'mid', 'low', 'unknown'] },
+    position:   { type: 'INTEGER' },
+    confidence: { type: 'STRING', enum: ['high', 'medium', 'low', 'unknown'] },
+    note:       { type: 'STRING' },
+  },
+  required: ['band', 'position', 'confidence', 'note'],
+};
+
+/** Dedicated pass: holistic impression only (runs every 2 reading chunks). */
+const HOLISTIC_PASS_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    overallImpression: {
+      type: 'OBJECT',
+      properties: {
+        A: OI_BAND_OBJ_SCHEMA,
+        B: OI_BAND_OBJ_SCHEMA,
+        C: OI_BAND_OBJ_SCHEMA,
+        D: OI_BAND_OBJ_SCHEMA,
+      },
+      required: ['A', 'B', 'C', 'D'],
+    },
+  },
+  required: ['overallImpression'],
 };
 
 const CRIT_SCORE_OBJ = {
@@ -299,69 +326,13 @@ Notes fields (update and return as "notes" in your response):
 • concerns — Short list of MACRO-level concerns about the essay as a whole — structural, argumentative, or interpretive issues that affect the overall quality across multiple paragraphs, not local slips or single-sentence observations. Each entry ≤12 words. Only add an entry when a pattern or essay-wide problem has become clear.
 • feeling — LOCAL impression from recent chunks only. Four fields — A, B, C, D — each a 1–2 sentence note on what the current and immediately preceding chunks show: what is working, what is not. Update freely each chunk. Leave "" if nothing observed yet for that criterion.
 
-• overallImpression — HOLISTIC cumulative estimate of the essay's likely final band per criterion. Four fields A, B, C, D, each with:
-  - "band": current best estimate — "high", "mid", "low", or "unknown" if too early to say
-  - "position": relative position within the chosen high/mid/low band, represented as a 4-square bar:
-      1 = low side of the band
-      2 = mid side (slightly lower)
-      3 = mid side (slightly higher)
-      4 = high side of the band
-    If band is "unknown", set position to 0.
-  - "confidence": how certain you are that this band estimate will hold — "high", "medium", "low", or "unknown" if too early to say. Confidence depends on TWO factors: (1) how far through the essay you are, and (2) how consistent the writing has been. It can go UP (pattern is clear and stable) or DOWN (the essay is shifting, contradicting earlier quality, or showing unexpected inconsistency). High confidence early requires extreme consistency; low confidence late is valid if the essay is volatile.
-  - "note": a nuanced summary (see below)
-
-  HIGH / MID / LOW DEFINITIONS (use these when setting "band"):
-  Criterion A — Knowledge and Understanding
-  - Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
-  - High: thorough AND perceptive understanding; convincing and insightful interpretation of larger implications and subtleties; references well-chosen and effectively support ideas.
-  - Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
-  - Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
-
-  Criterion B — Analysis and Interpretation
-  - Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
-  - High: insightful and convincing analysis of textual features and/or authorial choices; VERY GOOD evaluation of how such features shape meaning.
-  - Mid: generally appropriate analysis of textual features and/or authorial choices; evaluation is sometimes present.
-  - Low: some appropriate analysis but is RELIANT ON DESCRIPTION; evaluation of how features shape meaning is largely absent.
-
-  Criterion C — Focus and Organisation
-  - Key question: How well organised, coherent and focused is the presentation of ideas?
-  - High: presentation is effectively organised and coherent; analysis is WELL FOCUSED throughout.
-  - Mid: presentation is adequately organised in a generally coherent manner; SOME focus in the analysis.
-  - Low: ONLY SOME organisation apparent; LITTLE focus in the analysis.
-
-  Criterion D — Language
-  - Key question: How clear, varied and accurate is the language? How appropriate is register and style?
-  - High: vocab very clear, effective, carefully chosen and PRECISE; HIGH degree of accuracy in grammar, vocabulary and construction; register and style effective and appropriate.
-  - Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
-  - Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and distracting at times.
-
-  RULES FOR overallImpression:
-  1. Does NOT count toward the 350-word limit — write as fully as the evidence warrants.
-  2. Only UPDATE a criterion's band/note when you have SUSTAINED evidence across multiple chunks — a single impressive or weak moment is not enough. Hold your previous estimate unless a consistent pattern confirms a change.
-  3. The "note" must be BRIEF but CUMULATIVE: keep it short (phrase-heavy) while integrating the full essay-so-far (intro/body 1/body 2/... as available). Do not erase prior conditions; instead ADD to them, or compress/summarise earlier points as the picture stabilises. A reader should be able to understand the prior pattern from the note alone when moving into the next chunk.
-     The note must always cover BOTH sides — what is working AND what is not — with specific evidence for each. Use short phrases where appropriate (full sentences not required). The note must convey:
-     - GOOD SIDE: which specific sections/moments showed strength, with a brief phrase indicating evidence (e.g. "intro + body 1: perceptive unpacking of imagery")
-     - BAD SIDE: which specific sections/moments fell short, with a phrase indicating the problem (e.g. "body 2–3: device-labelling only, no mechanism")
-     - PREVALENCE: roughly how much of the essay so far is each side (e.g. "~2/3 strong, ~1/3 surface-level" or "mostly mid with one high moment in body 1")
-     - POSITION WITHIN BAND: where in the band the essay sits (e.g. "solid mid, upper edge" or "low-mid, not yet convincing")
-     - PROPORTIONAL COVERAGE: devote space roughly in proportion to how much of the essay you have actually read. Do not oversqueeze earlier paragraphs and overemphasise later parts (especially the conclusion) just because they are recent; keep the note balanced across the essay-so-far.
-     - PARAGRAPH DEPTH: whenever the note names a paragraph or section (introduction, body paragraph N, conclusion), do not collapse that paragraph to a single word, bare tag, or acronym with no substance — see rule 8.
-  4. WORD COUNT by essay position (you are at ${Math.round((chunkIndex + 1) / totalChunks * 100)}% through):
-     - Opening (0–15%): use "unknown" for band — too little seen; leave note as "".
-     - Before halfway (15–50%): ~35 words — early signal, both sides if visible.
-     - After halfway (50–80%): ~70 words — clear picture of good/bad prevalence.
-     - Near end (80–100%): ~100-120 words — full accounting with specific section references.
-     These targets are flexible: if rule 8 (per-paragraph minimum) requires more words, exceed the band target rather than shrinking named paragraphs to stubs.
-  5. Always reference SPECIFIC sections (introduction, body paragraph 1, body paragraph 2, conclusion) — no vague impressions.
-  6. Integrate ALL prior evidence using the majority pattern across the essay so far to determine each overallImpression — not one local passage in isolation. You must NOT rapidly shift band from a single chunk (e.g. jumping from mid-band position 1 straight to high-band position 4 in one update). You CAN and SHOULD adjust position (the 1–4 "squares" within the current band) gradually: typically add or subtract at most 1–2 position steps per chunk when evidence warrants, and only when the current chunk corroborates what earlier chunks already suggested — not from a purely local spike or dip. When quality is sustained across multiple chunks/paragraphs and the majority picture clearly shifts, you may then move to a higher or lower band; until then, refine placement mainly within the band (and use confidence to reflect uncertainty).
-  7. CRITERION SEPARATION — Treat A, B, C, and D as four independent marks. Each overallImpression field (A, B, C, D) must judge only that criterion using its own rubric above. Do not conflate criteria: e.g. do not raise A or B because language is strong (that belongs in D only), do not lower D because argument is weak (address that in A/B/C as appropriate), and do not merge organisation issues into the language note or vice versa. Evidence for one criterion may appear in the same paragraph as another, but the band, position, confidence, and note for each letter must stay faithful to that letter alone.
-  8. PER-PARAGRAPH MINIMUM IN EACH NOTE — For every essay paragraph or section you explicitly reference in an overallImpression note (per criterion), include at least roughly 10–15 words of substantive, criterion-relevant description for that paragraph. Summarising is fine, but not one-word or label-only summaries (e.g. "body 2: weak" alone is invalid). Main body paragraphs especially need this floor even when you compress earlier material. Introduction and conclusion may use the same floor when you name them; if a section is not named, you need not allocate words to it. If many paragraphs are in scope, the note may grow beyond the rule 4 band targets — always prefer meeting this minimum over staying under a soft word target.
+• overallImpression — NOT part of this response. A separate dedicated pass (every two reading chunks) updates holistic bands, positions, confidence, and cumulative notes using your thesis/reasoning/feeling/etc., all annotations so far, and the prior holistic snapshot. Focus this call on chunk notes + annotations only.
 
 ESSAY STRUCTURE AWARENESS:
 Essays will have an introduction, body paragraphs, and a conclusion. Treat these differently in your reasoning:
 - Introduction: the thesis (if stated) lives here; note the framing and scope but do not treat introductory sentences as analytical moves. Set the thesis field if clearly stated.
 - Body paragraphs: the core analytical work — each paragraph typically advances a claim, applies a technique, and develops its significance. This is where reasoning nodes should be richest.
-- Conclusion: typically restates or synthesises rather than adding new analysis. Note whether it adds genuine insight or merely repeats. Do not create new top-level reasoning nodes for points already established in the body; add a single conclusion node only if the student does something analytically new or if there is a notable quality observation.
+- Conclusion — apply across ALL note fields (thesis, reasoning, readerState, concerns, feeling): A Paper 1 conclusion is not supposed to add substantial new analysis or a large amount of fresh synthesis; it should mainly round off or briefly draw together what the body already argued. Treat it as low leverage for overall quality: it does not materially raise or lower your cumulative judgement unless it is absent or clearly flawed (e.g. contradicts the body, introduces unsupported claims, leaves the argument hanging, serious register or coherence failure), or unless it offers genuinely new, sophisticated analytical insight that goes beyond repetition — only that exceptional case may meaningfully elevate quality. Do not overweight the conclusion in reasoning nodes or concerns relative to body paragraphs; add a single conclusion reasoning node only when something analytically new or a notable quality issue appears there. (The separate holistic pass applies the same principle when it writes overallImpression notes.)
 
 NOTES RULES:
 1. NO quotes or verbatim text from the student essay in notes. Paraphrase everything.
@@ -374,6 +345,8 @@ PART 2 — PLACE ANNOTATIONS
 ════════════════════════════════════════════════
 
 After updating your notes, place 0–4 annotations on the CURRENT chunk or the PREVIOUS chunk (only if directly triggered by what you just read in the current chunk).
+
+CONCLUSION — ANNOTATION WEIGHTING: When the chunk you are annotating is the conclusion (or mostly conclusion), use the same principle as in notes above. Do not treat it like a body paragraph: avoid clustering annotations there. Prefer few or none unless something clearly scores — a flaw that matters (contradiction, unsupported new claim, incoherence, serious language issue), a missing or inadequate recap where the essay needs closure, or a rare case of distinct new sophistication that genuinely raises the level. Routine restatement or light synthesis does not warrant extra ★/✓ marks; do not let a polished final paragraph alone drive positive B or A annotations if it only repeats earlier analysis.
 
 SELECTION PRINCIPLE: Place 0–8 annotations per chunk — only moments that would materially affect scoring or that a co-examiner would need to see to calibrate their mark. Choose the annotation symbol that most accurately represents the quality of the writing in this passage: if the student is genuinely doing something well, use a positive symbol (★, ✓, →); if they are falling short, use a negative one (✗, ?, D, S, etc.). The symbol should honestly reflect the level of the work in the recent chunks, not default to neutral.
 
@@ -403,7 +376,7 @@ A_EXCLAIM  !  Understands local meaning and implications but not the broader mea
 ── Criterion B (Stylistic Features) ──
 B_STAR     ★  Devices related to each other and to the text's larger argument — not analysed in isolation
 B_CHECK    ✓  Identifies not just WHAT devices are present but WHY effective and HOW they construct meaning
-B_D        D  Largely descriptive: notes what is in the text rather than analysing how it functions
+B_D        D  Describes or summarises plot (or surface content) without analysing how any device shapes meaning or affects the reader — worse than B_NO_EVAL (∅), which at least gestures at effect
 B_CROSS    ✗  Device labels are incorrect, conflated, or applied to the wrong element
 B_QUESTION ?  Connection between device and meaning is tenuous, unsupported, or simply asserted
 B_NO_EVAL  ∅  Evaluation of how features shape meaning is absent — tells effect but not how achieved
@@ -417,6 +390,7 @@ C_QUESTION ?  Focus is breaking down; stream-of-consciousness; main point is har
 C_SIGNPOST →  Logical/argumentative transitions ("building on this", "by contrast") rather than just sequential ("also", "in addition")
 C_S        S  Analysis scattered — multiple unrelated points, no clear priority or connecting logic. Cross-check your reasoning map: if it shows several disconnected nodes in the same paragraph, C_S is likely appropriate.
 C_DRIFT    ≋  Drifts from thesis: this content or ordering no longer follows the thesis as stated in the introduction — the essay has wandered away from its own stated argument. Cross-check your reasoning map and the thesis field to judge whether this paragraph is still serving the essay's stated central argument.
+C_ICP    ICP  Incomplete at paragraph or whole-essay level: paragraph cuts off mid-thought, lacks a workable topic sentence or development, or reads as a fragment; at essay level — introduction or conclusion missing or so truncated that the response is structurally unfinished for Paper 1. Use when the problem is absence or structural truncation, not merely weak focus (use C? or C_S for that).
 
 ── Criterion D (Language) ──
 D_SP       SP   Spelling error
@@ -434,7 +408,7 @@ OUTPUT FORMAT
 
 Return ONLY a valid JSON object with exactly two top-level keys: "notes" and "annotations".
 
-"notes" must contain: thesis, reasoning, readerState, concerns, feeling (A/B/C/D strings), overallImpression (A/B/C/D objects each with band/position/confidence/note).
+"notes" must contain: thesis, reasoning, readerState, concerns, feeling (A/B/C/D strings). Do NOT return overallImpression.
 
 Each annotation: target ("current"|"prev"), anchor (3–8 verbatim words), criterion ("A"|"B"|"C"|"D"), type (one of the annotation codes), note (brief examiner note).
 
@@ -466,7 +440,7 @@ ${JSON.stringify(notes, null, 2)}`;
   // Wrap API call + JSON parse in retry-with-backoff so a single transient
   // glitch (5xx, timeout, truncated JSON, rate-limit) doesn't abort the pass.
   const parsed = await withRetry(async (attempt) => {
-    const raw = await callApi(system, user, READ_CHUNK_SCHEMA);
+    const raw = await callApi(system, user, READ_CHUNK_SCHEMA); // notes omit overallImpression — holistic pass updates it
     try {
       return parseJson(raw);
     } catch (e) {
@@ -486,24 +460,175 @@ ${JSON.stringify(notes, null, 2)}`;
   return { notes: updatedNotes, annotations };
 }
 
+function annotationsForHolisticPrompt(allAnnotations) {
+  return (allAnnotations ?? []).map((a) => ({
+    chunkIndex: a.chunkIndex,
+    criterion: a.criterion,
+    type: a.type,
+    anchor: a.anchor,
+    note: a.note,
+  }));
+}
+
+function mergeHolisticOverallImpression(prior, parsed) {
+  const raw = parsed?.overallImpression ?? parsed;
+  if (!raw || typeof raw !== 'object') return prior ?? initialNotes().overallImpression;
+  const base = prior ?? initialNotes().overallImpression;
+  const out = { ...base };
+  for (const k of ['A', 'B', 'C', 'D']) {
+    if (!raw[k] || typeof raw[k] !== 'object') continue;
+    out[k] = { ...EMPTY_BAND, ...(base[k] ?? {}), ...raw[k] };
+  }
+  return out;
+}
+
+/** Last one or two essay chunks for the holistic pass (paired cadence). */
+function buildHolisticChunkWindowMarkdown(chunks, paraStartSet, chunkIndexEnd) {
+  const parts = [];
+  const spanStart = Math.max(0, chunkIndexEnd - 1);
+  for (let j = spanStart; j <= chunkIndexEnd; j++) {
+    const label = getParaLabel(j, paraStartSet);
+    parts.push(`--- Chunk ${j + 1} of ${chunks.length} — ${label} (student essay)\n${chunks[j] ?? ''}`);
+  }
+  return parts.join('\n\n');
+}
+
+/**
+ * System prompt for the dedicated holistic-impression API pass (runs every 2 reading chunks).
+ * @param {number} chunkIndexEnd  — 0-based index of the chunk just finished
+ * @param {number} totalChunks
+ */
+function buildHolisticImpressionSystemPrompt(chunkIndexEnd, totalChunks) {
+  const pct = Math.round(((chunkIndexEnd + 1) / totalChunks) * 100);
+  return `You are an IB English A Paper 1 examiner on a DEDICATED pass. Return ONLY an updated "overallImpression" object for A, B, C, and D.
+
+This pass runs after every TWO sequential reading chunks (and also after the final chunk if the count is odd). You synthesise: accumulated notes, ALL annotations so far, the last one–two student essay chunks, the source passage, and the PRIOR overallImpression snapshot.
+
+READING POSITION FOR THIS UPDATE: chunk ${chunkIndexEnd + 1} of ${totalChunks} completed (~${pct}% through by chunk count).
+
+Each criterion A–D must include:
+  - "band": "high", "mid", "low", or "unknown" if too early
+  - "position": integer 1–3 within that band vs IB descriptors — 1 = lower third, 2 = middle third, 3 = upper third; if band is "unknown", position 0
+  - "confidence": "high", "medium", "low", or "unknown"
+  - "note": follow the four-step workflow below; end with an explicit shift tag (see step 3)
+
+HOLISTIC UPDATE WORKFLOW — apply IN ORDER, separately for each criterion (A, B, C, D); do not conflate criteria.
+
+STEP 1 — CARRY FORWARD THE PRIOR NOTE (summarise, do not gut)
+• Start from the prior overallImpression note for this letter. Summarise and compress only where needed; do NOT oversimplify or drop past observations to save space.
+• Body paragraphs: treat them consistently. Space devoted to each named body paragraph in the note must stay **proportional** to that paragraph's share of the essay (by chunks and/or word count in the student text). As a floor, keep **at least ~20 words** of substantive, criterion-specific coverage **per body paragraph you still name** — do not shrink a body paragraph's treatment to a token or one-liner.
+• Introduction and conclusion may be shorter than body paragraphs but still specific; do not let the conclusion dominate.
+
+STEP 2 — ADD NEW OBSERVATIONS (this criterion only)
+• Add what the last two reading chunks (plus annotations and other notes) newly show for **this** criterion only: strengths, weaknesses, and **prevalence** (how widespread the pattern is in the essay so far).
+• Good and bad both belong here when evidence exists.
+
+STEP 3 — SHIFT BAND / POSITION (explicit mark in the note)
+After merging step 1 + 2, decide the **change** vs the PRIOR holistic snapshot for this criterion. In the **note** text, you MUST end with a single bracketed line in exactly one of these forms:
+  [SHIFT: +1]  — consistent evidence across the **recent** chunks shows quality **above** the prior within-band placement (enough that recent evidence **somewhat overweights** the older picture). Apply the appropriate change to **position** (1–3); if the shift crosses a band boundary (e.g. mid band + position 3 → high band + position 1), update **band** as well as **position**.
+  [SHIFT: -1]  — consistent evidence in recent chunks shows quality **below** the prior within-band placement (same rule: may change **band** if you cross from high-lower to mid-upper, etc.).
+  [SHIFT: 0]   — no **consistent** pattern in recent chunks; evidence is local, thin, or contradictory → **do not** move band or position for this pass. If there is a hint but not enough, adjust **confidence** up or down and briefly explain in the note before the [SHIFT: 0] line.
+
+Use +1 / -1 as **one step** on the combined ladder (move one tier: e.g. mid middle → mid upper is +1; crossing mid upper into high low is still one holistic step but counts as +1 **and** a **band** change). Do not jump multiple tiers in one pass unless the last two chunks contain overwhelming, repeated proof — prefer a single +1/-1 per pass.
+
+STEP 4 — ASSIGN / KEEP BANDS (unchanged logic except as driven by step 3)
+• Setting **band** and **position** from **unknown** early on is unrestricted when the essay finally supports a first real estimate (same as always).
+• When band is already known, only change it when step 3 warrants (including boundary crosses as described).
+
+OTHER:
+• Holistic notes do NOT count toward the reader's 350-word cap on thesis/reasoning/etc. — write as fully as needed subject to step 1 floors.
+• Rough length by progress (~${pct}% through): opening phase may leave band unknown and note empty; mid-pass notes grow; near the end allow fuller accounting — but **never** violate step 1 body-paragraph floors to hit a shorter word target.
+• Always anchor to specific sections (intro, body 1, …, conclusion). Criterion separation: no cross-talk between A/B/C/D.
+
+HIGH / MID / LOW DEFINITIONS (use when setting "band"):
+Criterion A — Knowledge and Understanding
+- Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
+- High: strong understanding of the text; includes some moments of genuine insight into implications or subtleties — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
+- Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
+- Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
+
+Criterion B — Analysis and Interpretation
+- Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
+- High: insightful and convincing analysis of textual features and/or authorial choices; the essay **mostly evaluates** how such features shape meaning (not every passage need reach the same depth, but evaluation is the prevailing pattern rather than description alone).
+- Mid: generally appropriate analysis of textual features and/or authorial choices; evaluation is sometimes present.
+- Low: some appropriate analysis but is RELIANT ON DESCRIPTION; evaluation of how features shape meaning is largely absent.
+
+Criterion C — Focus and Organisation
+- Key question: How well organised, coherent and focused is the presentation of ideas?
+- High: presentation is effectively organised and coherent; analysis is WELL FOCUSED throughout.
+- Mid: presentation is adequately organised in a generally coherent manner; SOME focus in the analysis.
+- Low: ONLY SOME organisation apparent; LITTLE focus in the analysis.
+
+Criterion D — Language
+- Key question: How clear, varied and accurate is the language? How appropriate is register and style?
+- High: vocab very clear, effective, carefully chosen and PRECISE; HIGH degree of accuracy in grammar, vocabulary and construction; register and style effective and appropriate.
+- Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
+- Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and distracting at times.
+
+CONCLUSION WEIGHTING: A Paper 1 conclusion rarely warrants a [SHIFT: +1] or band jump on its own unless it is clearly flawed, absent, or adds rare new sophistication — do not let a polished closing alone drive positive shifts.
+
+Return ONLY JSON: { "overallImpression": { "A": { "band": "…", "position": <1–3 or 0>, "confidence": "…", "note": "…" }, "B": {…}, "C": {…}, "D": {…} } }. No markdown. No extra keys.`;
+}
+
+/**
+ * Dedicated API call: refine overallImpression only (after each pair of reading chunks).
+ */
+async function updateHolisticImpressionPass(sourceText, chunks, paraStartSet, chunkIndexEnd, totalChunks, notes, allAnnotations) {
+  const system = buildHolisticImpressionSystemPrompt(chunkIndexEnd, totalChunks);
+  const notesLight = {
+    thesis: notes.thesis,
+    reasoning: notes.reasoning,
+    readerState: notes.readerState,
+    concerns: notes.concerns,
+    feeling: notes.feeling,
+  };
+  const user = `SOURCE PASSAGE (for reference):
+${sourceText}
+
+---
+MOST RECENT STUDENT ESSAY CHUNKS (prioritise these for fresh evidence; combine with everything below for whole-essay judgement):
+${buildHolisticChunkWindowMarkdown(chunks, paraStartSet, chunkIndexEnd)}
+
+---
+SEQUENTIAL READ PROGRESS: chunk ${chunkIndexEnd + 1} of ${totalChunks} just completed.
+
+---
+ACCUMULATED NOTES (no overallImpression here — it is supplied separately):
+${JSON.stringify(notesLight, null, 2)}
+
+---
+PRIOR overallImpression (refine in place — preserve continuity unless evidence demands change):
+${JSON.stringify(notes.overallImpression ?? initialNotes().overallImpression, null, 2)}
+
+---
+ALL ANNOTATIONS SO FAR (${allAnnotations.length}):
+${JSON.stringify(annotationsForHolisticPrompt(allAnnotations), null, 2)}`;
+
+  const parsed = await withRetry(async (attempt) => {
+    const raw = await callApi(system, user, HOLISTIC_PASS_SCHEMA);
+    try {
+      return parseJson(raw);
+    } catch (e) {
+      console.error(`updateHolisticImpressionPass JSON parse failed (attempt ${attempt}). Raw:`, raw);
+      throw new Error(`Holistic pass after chunk ${chunkIndexEnd + 1} — JSON parse error: ${e.message}`);
+    }
+  }, { label: `holisticPass@${chunkIndexEnd + 1}`, tries: 3, baseMs: 1500 });
+
+  return mergeHolisticOverallImpression(notes.overallImpression, parsed);
+}
+
 /**
  * Run the full sequential reading pass over the student's essay.
- * Calls the API once per chunk. Calls onProgress(chunkIndex, totalChunks) after each chunk.
+ * One API call per chunk for notes + annotations; a second call every 2 chunks for holistic impression only.
  *
- * @param {string} sourceText
- * @param {string} studentText
- * @param {function} onProgress  - (current: number, total: number) => void
- * @returns {Promise<{ notes: object, chunks: string[] }>}
- */
-/**
- * @param {string} sourceText
- * @param {string} studentText
- * @param {{ onBefore?: Function, onAfter?: Function }} [callbacks]
- *   onBefore(chunkIdx, totalChunks, currentNotes)       — called just before reading chunk i
- *   onAfter(chunkIdx, totalChunks, updatedNotes, chunkAnnotations, allAnnotations) — called after
+ * @param {{ onBefore?: Function, onAfter?: Function, onHolisticBefore?: Function, onHolisticAfter?: Function }} [callbacks]
+ *   onBefore(chunkIdx, totalChunks, currentNotes) — before reading chunk i
+ *   onAfter(chunkIdx, totalChunks, updatedNotes, chunkAnnotations, allAnnotations) — after chunk + any holistic update for that step
+ *   onHolisticBefore(chunkIdx, totalChunks, notes) — before the dedicated holistic API call (chunkIdx = index just finished)
+ *   onHolisticAfter(chunkIdx, totalChunks, notes, allAnnotations) — after holistic merge (notes include new overallImpression)
  */
 async function readEssaySequentiallyFromChunks(sourceText, chunks, paraStartSet, startIndex, startNotes, existingAnnotations, callbacks = {}) {
-  const { onBefore, onAfter } = callbacks;
+  const { onBefore, onAfter, onHolisticBefore, onHolisticAfter } = callbacks;
   let notes = startNotes ?? initialNotes();
   const allAnnotations = Array.isArray(existingAnnotations) ? [...existingAnnotations] : [];
 
@@ -515,9 +640,27 @@ async function readEssaySequentiallyFromChunks(sourceText, chunks, paraStartSet,
     const next   = i < chunks.length - 1 ? chunks[i + 1] : null;
     const paraLabel = getParaLabel(i, paraStartSet);
     const result = await readOneChunk(sourceText, chunks[i], prev, prev2, next, notes, i, chunks.length, paraLabel);
-    notes = result.notes;
+    const u = result.notes ?? {};
+    notes = { ...notes, ...u, overallImpression: notes.overallImpression };
     const chunkAnns = result.annotations ?? [];
     allAnnotations.push(...chunkAnns);
+
+    const runHolistic = (i + 1) % 2 === 0 || i === chunks.length - 1;
+    if (runHolistic) {
+      if (onHolisticBefore) onHolisticBefore(i, chunks.length, notes);
+      const oi = await updateHolisticImpressionPass(
+        sourceText,
+        chunks,
+        paraStartSet,
+        i,
+        chunks.length,
+        notes,
+        allAnnotations,
+      );
+      notes = { ...notes, overallImpression: oi };
+      if (onHolisticAfter) onHolisticAfter(i, chunks.length, notes, allAnnotations);
+    }
+
     if (onAfter) onAfter(i, chunks.length, notes, chunkAnns, allAnnotations);
   }
 
@@ -562,7 +705,7 @@ Register: consistently academic prose throughout, or informal intrusions? Any er
  * @param {object}   notes       - Final accumulated reading notes.
  * @param {object[]} annotations - All annotations from the reading pass.
  * @param {string[]} chunks      - Essay chunks (used for word-count estimate).
- * @returns {Promise<{ A, B, C, D }>}  Each value: { score, keyStrengths, keyWeaknesses, bandBoundary, justification }
+ * @returns {Promise<{ A, B, C, D }>}  Each value: { score (0–5), keyStrengths, keyWeaknesses, bandBoundary, justification }
  */
 async function scoreAllCriteria(notes, annotations, chunks) {
   const approxWords = chunks.length * CHUNK_TARGET_WORDS;
@@ -583,18 +726,20 @@ async function scoreAllCriteria(notes, annotations, chunks) {
 
   const system = `You are a senior IB English A Paper 1 SL/HL examiner and moderator.
 
-You have just finished a complete sequential reading of a student essay (~${approxWords} words). During reading you took progressive notes, applied examiner annotations at key moments, and formed a holistic overall impression per criterion. You are now awarding final marks 1–5 for each of the four criteria.
+You have just finished a complete sequential reading of a student essay (~${approxWords} words). During reading you took progressive notes, applied examiner annotations at key moments, and formed a holistic overall impression per criterion. You are now awarding final marks **0–5** for each of the four criteria.
 
-HIGH / MID / LOW DEFINITIONS (use these to map performance to a 1–5 score):
+CONTEXT: This is a **~75-minute unseen literary analysis** (Paper 1 conditions). High marks should **mostly** reflect evaluative and insightful qualities where the rubric demands them, but **do not** expect uniform perfection, zero errors in every paragraph, or complete absence of literal or uneven moments. Judge like a senior examiner under real timed pressure — anchor to the holistic impression first, then let notes and annotations correct you when they systematically disagree.
+
+HIGH / MID / LOW DEFINITIONS (use these together with holistic band + position to choose the mark):
 Criterion A — Knowledge and Understanding
 - Key question: How well does the candidate demonstrate understanding of the text and draw reasoned conclusions from its implications? How well are ideas supported by references to the text?
-- High: thorough AND perceptive understanding; convincing and insightful interpretation of larger implications and subtleties; references well-chosen and effectively support ideas.
+- High: strong understanding of the text; includes some moments of genuine insight into implications or subtleties — high band does **not** require perceptive interpretation everywhere, but references are well chosen and substantially support the argument.
 - Mid: understanding of the literal meaning; satisfactory interpretation of SOME implications; references generally relevant and mostly support ideas.
 - Low: some understanding of the LITERAL meaning; references at times appropriate but often surface-level or infrequent; sometimes misinterpretation.
 
 Criterion B — Analysis and Interpretation
 - Key question: To what extent does the candidate analyse and evaluate how textual features and/or authorial choices shape meaning?
-- High: insightful and convincing analysis of textual features and/or authorial choices; VERY GOOD evaluation of how such features shape meaning.
+- High: insightful and convincing analysis of textual features and/or authorial choices; the essay **mostly evaluates** how such features shape meaning (not every passage need reach the same depth, but evaluation is the prevailing pattern rather than description alone).
 - Mid: generally appropriate analysis of textual features and/or authorial choices; evaluation is sometimes present.
 - Low: some appropriate analysis but is RELIANT ON DESCRIPTION; evaluation of how features shape meaning is largely absent.
 
@@ -610,40 +755,37 @@ Criterion D — Language
 - Mid: vocab clear and carefully chosen; ADEQUATE accuracy despite some lapses; register mostly appropriate; still academic and mostly accurate.
 - Low: vocab sometimes clear and carefully chosen; FAIRLY accurate but errors and inconsistencies apparent; register to SOME EXTENT appropriate; becomes confusing and highly distracting at times.
 
-SCORING SCALE:
-• 5 — Mostly high-band throughout: perceptive, convincing, well-supported.
-• 4 — Roughly 2/3 mid-band, 1/3 high-band elements: generally competent with clear high-band moments but not sustained enough to award 5.
-• 3 — Normal Mid-band: adequate but not consistently strong; weaknesses present but manageable.
-• 2 — Normal Low-band: limited engagement; surface-level or mostly descriptive; some partial attempts.
-• 1 — Very limited; lower end of the low band;
-(Use 0 only if the criterion is entirely absent.)
+PRINCIPAL BENCHMARK — HOLISTIC IMPRESSION (mandatory anchor):
+For each criterion, treat **overallImpression** (band, position, confidence, and the **wording of the holistic note**, including any [SHIFT: …] logic from reading) as the **main** determinant of the mark. Start from that snapshot and the HIGH/MID/LOW definitions above — align your score with what the holistic pass already argued.
+
+SECONDARY ADJUSTMENT — READING NOTES + ANNOTATIONS:
+Use **reasoning, concerns, feeling**, and **annotations** to **raise or lower** the mark **only when** there is a **clear, repeated pattern** that **does not fit** the holistic call (e.g. many more negative markers than the holistic note suggests, or sustained strengths the holistic note underplayed). Small local noise should not override holistic. When you adjust, say so plainly in the justification (without meta-phrases like "the overallImpression field").
+
+SCORING SCALE (map holistic **band + position** first; then apply secondary adjustment if warranted):
+• **5** — **High** band with **position 2 or 3** (middle or upper third of high).
+• **4** — **Ambiguous / borderline**: typically **high** band **position 1** OR **mid** band **position 3** (straddles 4–5 or 3–4 territory); use notes + annotations to settle which side of the boundary.
+• **3** — **Mid** band with **position 1 or 2**.
+• **2** — **Low** band with **position 2 or 3**.
+• **1** — **Low** band **position 1**.
+• **0** — **Very poor**: the work **does not meaningfully engage** with this criterion in a way that could be credited, or is **egregiously** off-task for that criterion. **Rare** — use only when the response truly fails the criterion, not merely weak.
+
+Holistic **unknown** band early in the essay: infer cautiously from notes and annotations until holistic stabilises; once holistic assigns a band, follow the table.
 
 ${focusBlock}
 
-WEIGHTING EVIDENCE — you have three evidence sources; weight them carefully:
-1. HOLISTIC IMPRESSION (overallImpression field) — your sustained cumulative judgement after full reading; highest weight for band placement.
-2. READING NOTES (reasoning, concerns, feeling) — the argument map and pattern observations; high weight for C and for A/B analytical quality.
-3. ANNOTATIONS — fine-grained positive/negative markers at specific moments; use to confirm or adjust band boundary (e.g. many A? or BD annotations push toward lower band; many A★ or B★ push toward upper).
+INDEPENDENT CRITERIA: Award A, B, C, and D separately. Do not conflate criteria. Use only evidence relevant to each letter.
 
-Do NOT average the evidence mechanically — weigh it as a senior moderator would: look for the dominant pattern, account for consistency, and use annotations to resolve boundary calls.
-
-INDEPENDENT CRITERIA: Award A, B, C, and D separately. Do not conflate them when scoring — e.g. strong language must not inflate A or B; thin analysis must not be excused by good organisation; errors in D must not be used to mark down A–C unless they genuinely obscure meaning for that criterion. Use only evidence that belongs under each criterion's rubric for that criterion's score and justification.
-
-IMPORTANT — overallImpression "position" SCALE (within-band level):
-The reading-phase holistic impression includes per-criterion { band, position, confidence, note }.
-Interpret "position" as relative placement WITHIN the chosen band, not a separate band:
-- position 1 = low side of that band
-- position 2 = mid (slightly lower)
-- position 3 = mid (slightly higher)
-- position 4 = high side of that band
-Use position (and confidence) as a tie-breaker for boundary scores (e.g. mid-band position 4 often indicates a 4 rather than a 3, if evidence supports it).
+REMINDER — overallImpression **position** (within-band, integers 1–3; 0 if band is unknown):
+- position 1 = lower third of that band
+- position 2 = middle third
+- position 3 = upper third
 
 For EACH criterion return:
-• score: integer 1–5
+• score: integer **0–5** (use the scale above)
 • keyStrengths: 1–3 short bullet points — concrete strengths (annotation codes in brackets allowed, e.g. [C_SIGNPOST])
 • keyWeaknesses: 1–3 short bullet points — concrete weaknesses (same)
-• bandBoundary: one sentence — why this score and NOT the one above (or why 5 is fully earned)
-• justification: 3–5 sentences — holistic examiner reasoning for this criterion; weight the evidence; avoid meta-phrases like "as noted in the reading notes" or "the overallImpression field"; write as professional IB feedback prose (this text is shown in the report below the marks table).`;
+• bandBoundary: one sentence — why this score and not the adjacent score (e.g. why 4 not 5, or why 0 not 1)
+• justification: 3–5 sentences — professional IB feedback; lead from holistic quality, then note any upward/downward adjustment from the pattern in notes or annotations; avoid meta-phrases like "as noted in the reading notes".`;
 
   const user = `HOLISTIC IMPRESSION (per criterion):
 ${JSON.stringify(notes.overallImpression ?? {}, null, 2)}
@@ -761,7 +903,7 @@ function loadFixedChunksForStudentText(studentText) {
 /**
  * @param {string} sourceText
  * @param {string} studentText
- * @param {{ onBefore?: Function, onAfter?: Function }} [callbacks]  — forwarded to readEssaySequentially
+ * @param {{ onBefore?: Function, onAfter?: Function, onHolisticBefore?: Function, onHolisticAfter?: Function }} [callbacks]  — forwarded to readEssaySequentially
  * @returns {{ notes, chunks, allAnnotations, fromCache: boolean }}
  */
 async function getReadingNotes(sourceText, studentText, callbacks = {}) {
@@ -817,6 +959,8 @@ async function getReadingNotes(sourceText, studentText, callbacks = {}) {
             allAnnotations ?? [],
             {
               onBefore: callbacks.onBefore,
+              onHolisticBefore: callbacks.onHolisticBefore,
+              onHolisticAfter: callbacks.onHolisticAfter,
               onAfter(chunkIdx, total, updatedNotes, chunkAnnotations, updatedAll) {
                 // Persist progress after each successfully-read chunk.
                 saveReadingCache({
@@ -848,6 +992,8 @@ async function getReadingNotes(sourceText, studentText, callbacks = {}) {
     [],
     {
       onBefore: callbacks.onBefore,
+      onHolisticBefore: callbacks.onHolisticBefore,
+      onHolisticAfter: callbacks.onHolisticAfter,
       onAfter(chunkIdx, total, updatedNotes, chunkAnnotations, updatedAll) {
         saveReadingCache({
           fingerprint: textFingerprint,
@@ -1117,7 +1263,7 @@ const ANNOTATION_META = {
   A_EXCLAIM:  { label: 'A!',   title: 'Criterion A — Understands local meaning but not the broader meaning of the text' },
   B_STAR:     { label: 'B★',   title: 'Criterion B — Devices related to each other and the text\'s larger argument; not in isolation' },
   B_CHECK:    { label: 'B✓',   title: 'Criterion B — Identifies WHAT, WHY, and HOW: device, effectiveness, and meaning' },
-  B_D:        { label: 'BD',   title: 'Criterion B — Descriptive: notes what is in the text rather than how it functions' },
+  B_D:        { label: 'BD',   title: 'Criterion B — Plot/description only: no analysis of how any device affects meaning; worse than B∅ (no evaluation of how effect is achieved)' },
   B_CROSS:    { label: 'B✗',   title: 'Criterion B — Device label incorrect, conflated, or applied to wrong element' },
   B_QUESTION: { label: 'B?',   title: 'Criterion B — Connection between device and meaning is tenuous or simply asserted' },
   B_NO_EVAL:  { label: 'B∅',   title: 'Criterion B — Evaluation absent: tells effect but not how it is achieved' },
@@ -1129,6 +1275,7 @@ const ANNOTATION_META = {
   C_SIGNPOST: { label: 'C→',   title: 'Criterion C — Logical/argumentative transition rather than sequential ("also", "in addition")' },
   C_S:        { label: 'CS',   title: 'Criterion C — Scattered: multiple unrelated points, no clear priority or connecting logic' },
   C_DRIFT:    { label: 'C≋',   title: 'Criterion C — Drifts from thesis: content or order no longer follows the thesis as stated in the introduction' },
+  C_ICP:      { label: 'ICP',  title: 'Criterion C — Incomplete: paragraph unfinished or fragmentary; or essay missing/truncated intro or conclusion (structural incompleteness, not just weak focus)' },
   D_SP:       { label: 'DSP',  title: 'Criterion D — Spelling error' },
   D_AWK:      { label: 'DAWK', title: 'Criterion D — Awkward phrasing' },
   D_WC:       { label: 'DWC',  title: 'Criterion D — Imprecise word choice' },
@@ -1356,13 +1503,20 @@ function renderReasoningHtml(nodes) {
 
 function renderBandPositionBar(band, position) {
   if (!band || band === 'unknown') return '';
-  const pos = clampInt(position ?? 0, 0, 4);
+  const pos = normalizeHolisticPosition(position);
   if (pos <= 0) return '';
-  const squares = [1, 2, 3, 4].map(i => {
-    const filled = i <= pos ? ' rp-bandpos__sq--filled' : '';
-    return `<span class="rp-bandpos__sq${filled}" aria-hidden="true"></span>`;
-  }).join('');
-  return `<span class="rp-bandpos rp-bandpos--${band}" title="Position in band: ${pos}/4" aria-label="Position in band: ${pos} out of 4">${squares}</span>`;
+  const tierWords = ['lower', 'middle', 'upper'];
+  const tierLetters = ['L', 'M', 'U'];
+  const word = tierWords[pos - 1];
+  const segs = [1, 2, 3]
+    .map(i => {
+      const filled = i <= pos ? ' rp-bandpos__seg--filled' : '';
+      const ch = tierLetters[i - 1];
+      return `<span class="rp-bandpos__seg${filled}" aria-hidden="true"><span class="rp-bandpos__seg-label">${ch}</span></span>`;
+    })
+    .join('');
+  const title = `Within band: ${word} third (${pos}/3) — vs ${band} band descriptors`;
+  return `<span class="rp-bandpos" title="${escapeHtml(title)}" aria-label="${escapeHtml(`Within band: ${word} third, ${pos} of 3`)}">${segs}</span>`;
 }
 
 /** Render overallImpression into the dedicated right-hand box. */
@@ -1803,7 +1957,7 @@ async function handleScore() {
     for (const crit of ['A', 'B', 'C', 'D']) {
       const detail = result[crit];
       if (!detail) continue;
-      const score = Math.max(1, Math.min(5, Math.round(detail.score)));
+      const score = Math.max(0, Math.min(5, Math.round(detail.score)));
       saveScore(SCORE_KEY_MAP[crit], score);
       saveScoreDetail(crit, detail);
       setTileScore(crit, score);
@@ -1915,6 +2069,13 @@ async function handleRunAll() {
           markChunkCurrent(chunkIdx);
           // Show notes from previous chunk immediately as context while AI reads
           if (chunkIdx > 0) updateReadingNotes(currentNotes);
+        },
+        onHolisticBefore(chunkIdx, total) {
+          const pct = ((chunkIdx + 1) / total) * 100;
+          showProgress(`Holistic impression (after chunk ${chunkIdx + 1} of ${total})…`, pct);
+        },
+        onHolisticAfter(_chunkIdx, _total, updatedNotes) {
+          updateReadingNotes(updatedNotes);
         },
         onAfter(chunkIdx, total, updatedNotes, chunkAnnotations) {
           markChunkDone(chunkIdx, chunkAnnotations);
