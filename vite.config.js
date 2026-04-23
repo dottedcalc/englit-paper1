@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const PART_FILES = [
-  "client.js",  // API key storage + callApi (Gemini + Claude)
+  "client.js",  // API key storage + callApi (OpenRouter)
   "app.js",     // classifier, criterion stubs, moderation, boot
 ];
 

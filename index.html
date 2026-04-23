@@ -49,8 +49,9 @@
               inaccuracy of scores shown here.
             </li>
             <li>
-              You must supply your own <strong>API key</strong> and <strong>choose a supported model</strong> in the
-              section below. API usage and charges are billed by the selected provider to your account.
+              You must supply your own <strong>OpenRouter API key</strong> and <strong>choose a supported model</strong>
+              in the section below. Usage is billed by <strong>OpenRouter</strong> (and reflected on your OpenRouter
+              account) according to the model’s listed pricing.
               <strong>Different models will change scoring:</strong> more advanced, sophisticated models tend to produce
               more consistent, accurate judgments than smaller or lighter models, though no model guarantees a match to an
               official IB mark.
@@ -60,9 +61,10 @@
               criterion results are kept <strong>only in this browser</strong> (e.g. localStorage); they are
               <strong>not</strong> uploaded to or stored on this site’s servers. Model responses are <strong>not</strong>
               used to train any model owned or operated by the developer. By using the tool you <strong>consent</strong>
-              to sending your inputs (and prompts built from them) to the selected model provider, such as
-              <strong>Google’s Gemini API</strong> or <strong>Anthropic’s Claude API</strong>, under that provider’s
-              terms and privacy policy.
+              to sending your inputs (and prompts built from them) to
+              <strong>OpenRouter</strong>, which routes requests to the model host you select, under
+              <a href="https://openrouter.ai/terms" target="_blank" rel="noopener noreferrer">OpenRouter’s terms</a>
+              and the upstream provider’s policies where applicable.
             </li>
             <li>
               <strong>Do not refresh</strong> the page while <strong>grading</strong> or during an <strong>active
@@ -77,14 +79,14 @@
       <section class="panel credentials-panel">
         <h2 class="panel-title">Model API</h2>
         <p class="hint">
-          Gemini selections use Google's
-          <a href="https://ai.google.dev/gemini-api/docs" target="_blank" rel="noopener noreferrer">Gemini API</a>
-          <code>generateContent</code> endpoint, while Claude selections use Anthropic's
-          <a href="https://docs.anthropic.com/en/api/messages" target="_blank" rel="noopener noreferrer"
-            >Messages API</a
-            >. Each choice maps to the provider's official model id in the request. Your key and model choice are stored
-            in this browser (localStorage). See the
-            <a href="#termsOfService">Terms of service</a> for liability.
+          All requests use
+          <a href="https://openrouter.ai/docs/api-reference/overview" target="_blank" rel="noopener noreferrer"
+            >OpenRouter</a
+          >
+          (<code>/api/v1/chat/completions</code>). Each option is an OpenRouter model id. Use an
+          <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">OpenRouter API key</a>
+          (<code>sk-or-v1-…</code>). Your key and model choice are stored in this browser (localStorage). See the
+          <a href="#termsOfService">Terms of service</a> for liability.
         </p>
         <label class="field">
           <span class="label-text">API key</span>
@@ -93,33 +95,96 @@
             id="apiKey"
             name="apiKey"
             autocomplete="off"
-            placeholder="Paste your Gemini or Anthropic API key"
+            placeholder="Paste your OpenRouter API key (sk-or-v1-…)"
           />
         </label>
-        <label class="field">
-          <span class="label-text">Model</span>
-          <select id="modelSelect" name="model" class="field-select">
-            <option value="gemma-4-31b-it" data-tier="open">Gemma 4 31B (higher quota, open source)</option>
-            <option value="gemini-3.1-flash-lite-preview" data-tier="lite">Gemini 3.1 Flash-Lite (preview)</option>
-            <option value="gemini-3-flash-preview" data-tier="flash">Gemini 3 Flash (preview)</option>
-            <option value="gemini-3.1-pro-preview" data-tier="pro">Gemini 3.1 Pro (preview)</option>
-            <option value="claude-opus-4-7" data-tier="anthropic">Claude Opus 4.7 (Anthropic)</option>
-            <option value="claude-opus-4-6-buzz7" data-tier="anthropic-proxy">Claude Opus 4.6 (buzz7 proxy)</option>
-          </select>
-          <p class="model-tier-note model-tier-note--lite" id="modelTierNote" aria-live="polite">
+        <div class="field model-picker-field">
+          <span class="label-text" id="modelTierLabel">Tier</span>
+          <div
+            class="model-tier-bar"
+            id="modelTierBar"
+            role="group"
+            aria-labelledby="modelTierLabel"
+          >
+            <button
+              type="button"
+              class="model-tier-btn model-tier-btn--premium"
+              data-tier="premium"
+              aria-pressed="false"
+            >
+              Premium
+            </button>
+            <button
+              type="button"
+              class="model-tier-btn model-tier-btn--paid"
+              data-tier="paid"
+              aria-pressed="false"
+            >
+              Paid
+            </button>
+            <button
+              type="button"
+              class="model-tier-btn model-tier-btn--accessible"
+              data-tier="accessible"
+              aria-pressed="false"
+            >
+              Accessible
+            </button>
+            <button
+              type="button"
+              class="model-tier-btn model-tier-btn--free"
+              data-tier="free"
+              aria-pressed="false"
+            >
+              Free
+            </button>
+          </div>
+          <p class="model-tier-note model-tier-note--free" id="modelTierNote" aria-live="polite">
             <strong class="model-tier-note__lead"></strong><span class="model-tier-note__rest"></span>
           </p>
+          <label class="field model-picker-field__model">
+            <span class="label-text">Model in tier</span>
+            <select id="modelSelect" name="model" class="field-select" aria-describedby="modelCostHeading"></select>
+          </label>
+          <div class="model-cost-estimate" id="modelCostEstimate">
+            <h3 class="model-cost-estimate__title" id="modelCostHeading">Typical full essay run (estimate)</h3>
+            <p class="model-cost-estimate__scenario">
+              Assumes a <strong>~650-word</strong> source extract, <strong>~900-word</strong> student essay (~26 reading
+              chunks), sequential read with holistic updates, then <strong>one</strong> combined A–D scoring call — same
+              pattern as “Run analysis” + “Score A–D”.
+            </p>
+            <dl class="model-cost-estimate__stats">
+              <div class="model-cost-estimate__row">
+                <dt>API calls</dt>
+                <dd id="modelCostCalls">—</dd>
+              </div>
+              <div class="model-cost-estimate__row">
+                <dt>Est. input tokens</dt>
+                <dd id="modelCostIn">—</dd>
+              </div>
+              <div class="model-cost-estimate__row">
+                <dt>Est. output tokens</dt>
+                <dd id="modelCostOut">—</dd>
+              </div>
+              <div class="model-cost-estimate__row model-cost-estimate__row--emph">
+                <dt>Est. cost</dt>
+                <dd id="modelCostUsd">—</dd>
+              </div>
+            </dl>
+            <p class="model-cost-estimate__rates" id="modelCostRates"></p>
+            <p class="error model-cost-estimate__error" id="modelCostError" role="alert" hidden></p>
+            <p class="hint model-cost-estimate__disclaimer">
+              Token counts are <strong>rough</strong> (every request includes large shared system prompts). Dollar amounts
+              use <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer">OpenRouter’s listed
+              rates</a> for the selected slug; your invoice may differ slightly. <strong>Free</strong> slugs bill at
+              $0/M on OpenRouter but share capacity limits.
+            </p>
+          </div>
           <p class="hint model-free-tier-hint">
-            <strong>Google API free tier:</strong> Among the models listed here, <strong>Gemma 4 31B</strong> and
-            <strong>Gemini 3.1 Flash-Lite</strong> are the ones usually available on the Gemini API free tier;
-            <strong>Gemini 3 Flash</strong> and <strong>Gemini 3.1 Pro</strong> typically require a billed project and
-            are not free-tier defaults. <strong>Quotas (indicative):</strong> Gemma 4 — about
-            <strong>1500 requests per day (RPD)</strong>, generally high availability. Flash-Lite — about
-            <strong>500 RPD</strong>; you may occasionally get <strong>503 Unavailable</strong> when the service is
-            at capacity. <strong>Claude Opus 4.7</strong> uses Anthropic's billed Messages API instead of Google's free
-            tier.
+            <strong>OpenRouter pricing:</strong> “Free” uses <code>:free</code> routing (shared capacity). Other tiers
+            follow each model’s page on OpenRouter.
           </p>
-        </label>
+        </div>
       </section>
 
       <section class="panel input-panel">
@@ -326,7 +391,7 @@
             hidden
           ></p>
           <p class="grading-progress-card__hint">
-            ETA depends on your internet connection and Gemini response time. Grading cannot be cancelled from this screen.
+            ETA depends on your internet connection and model response time. Grading cannot be cancelled from this screen.
             Please wait.
           </p>
         </div>

@@ -203,6 +203,10 @@ END OF EXAMINER TRAINING BACKGROUND
 
 const KEY_API_KEY    = 'ib-grader-api-key';
 const KEY_MODEL      = 'ib-grader-model';
+
+/** Default when nothing saved or when a legacy provider id is still in localStorage. */
+const DEFAULT_OPENROUTER_MODEL = 'google/gemma-4-31b-it:free';
+const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const KEY_SOURCE     = 'ib-grader-source-text';
 const KEY_STUDENT    = 'ib-grader-student-paragraph';
 const KEY_CLASSIFY   = 'ib-grader-classification';
@@ -216,33 +220,22 @@ const KEY_OVERALL    = 'ib-grader-overall';
 
 function getApiKey()            { return localStorage.getItem(KEY_API_KEY) ?? ''; }
 function setApiKey(v)           { localStorage.setItem(KEY_API_KEY, v); }
-function getModel()             { return localStorage.getItem(KEY_MODEL) ?? 'gemini-3.1-flash-lite-preview'; }
+function getModel()             { return localStorage.getItem(KEY_MODEL) ?? DEFAULT_OPENROUTER_MODEL; }
 function setModel(v)            { localStorage.setItem(KEY_MODEL, v); }
-
-function isClaudeModel(model)   { return model.startsWith('claude'); }
-function isBuzz7Model(model)    { return model.endsWith('-buzz7'); }
-/** Return the actual model id that the provider expects (strip any suffix we added). */
-function resolveModelId(model) {
-  return model.replace(/-buzz7$/, '');
-}
 
 // ─── API client ───────────────────────────────────────────────────────────────
 
 /**
- * Unified API call for Gemini (generateContent) and Claude (Messages API).
+ * All models route through OpenRouter (OpenAI-compatible chat completions).
  *
- * @param {string} systemPrompt  - Instruction context / role for the model.
- * @param {string} userContent   - The user-turn message.
- * @param {object|null} schema   - Optional JSON schema for structured output (Gemini only).
- * @returns {Promise<string>}    - The model's text response.
- */
-/**
  * @param {string}      systemPrompt
  * @param {string}      userContent
- * @param {object|null} schema     — Gemini response schema (optional)
- * @param {boolean}     forceJson  — Force JSON output mode even without a schema (default true)
+ * @param {object|null} schema — Unused; JSON shape is enforced via prompts + `response_format`.
+ * @param {boolean}     forceJson — Request JSON object output (default true).
+ * @returns {Promise<string>}
  */
 async function callApi(systemPrompt, userContent, schema = null, forceJson = true) {
+  void schema;
   const apiKey = getApiKey().trim();
   const model  = getModel();
 
@@ -250,87 +243,40 @@ async function callApi(systemPrompt, userContent, schema = null, forceJson = tru
 
   const fullSystem = EXAMINER_TRAINING_BACKGROUND + systemPrompt;
 
-  if (isClaudeModel(model)) {
-    return callClaude(apiKey, model, fullSystem, userContent, forceJson);
-  }
-  return callGemini(apiKey, model, fullSystem, userContent, schema, forceJson);
+  return callOpenRouter(apiKey, model, fullSystem, userContent, forceJson);
 }
 
-async function callGemini(apiKey, model, systemPrompt, userContent, schema, forceJson = true) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+function openRouterMessageContent(message) {
+  const c = message?.content;
+  if (typeof c === 'string') return c;
+  if (!Array.isArray(c)) return '';
+  return c.map((part) => {
+    if (typeof part === 'string') return part;
+    if (part && typeof part.text === 'string') return part.text;
+    return '';
+  }).join('');
+}
 
+async function callOpenRouter(apiKey, model, systemPrompt, userContent, forceJson = true) {
   const body = {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: 'user', parts: [{ text: userContent }] }],
-    generationConfig: {
-      temperature: 0.4,
-      ...(schema
-        ? { responseMimeType: 'application/json', responseSchema: schema }
-        : forceJson
-          ? { responseMimeType: 'application/json' }
-          : {}),
-    },
+    model,
+    temperature: 0.4,
+    max_tokens: 16384,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent },
+    ],
+    ...(forceJson ? { response_format: { type: 'json_object' } } : {}),
   };
-
-  const controller = new AbortController();
-  const timeoutMs = 120_000;
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-
-  let res;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    const msg = e?.name === 'AbortError'
-      ? `Gemini request timed out after ${timeoutMs / 1000}s`
-      : (e?.message ?? String(e));
-    throw new Error(`Gemini network error: ${msg}`);
-  } finally {
-    clearTimeout(t);
-  }
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Gemini API error ${res.status}: ${err?.error?.message ?? res.statusText}`);
-  }
-
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  if (!text) throw new Error('Gemini returned an empty response.');
-  return text;
-}
-
-async function callClaude(apiKey, model, systemPrompt, userContent, forceJson = true) {
-  const buzz7 = isBuzz7Model(model);
-  const endpoint = buzz7
-    ? 'https://claude.buzz7.top/v1/messages'
-    : 'https://api.anthropic.com/v1/messages';
-  const modelId = resolveModelId(model);
 
   const headers = {
     'Content-Type': 'application/json',
-    'anthropic-version': '2023-06-01',
-    'x-api-key': apiKey,
-    ...(buzz7 ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}),
+    Authorization: `Bearer ${apiKey}`,
   };
-
-  // Prefill with '{' to force Claude into a JSON response
-  const messages = [
-    { role: 'user',      content: userContent },
-    ...(forceJson ? [{ role: 'assistant', content: '{' }] : []),
-  ];
-
-  const body = {
-    model: modelId,
-    max_tokens: 4096,
-    temperature: 0.4,
-    system: systemPrompt,
-    messages,
-  };
+  if (typeof location !== 'undefined' && location?.origin && location.origin !== 'null') {
+    headers['HTTP-Referer'] = location.origin;
+    headers['X-Title'] = 'L.A.E.R.T.E.S IB Paper 1 Analyzer';
+  }
 
   const controller = new AbortController();
   const timeoutMs = 120_000;
@@ -338,7 +284,7 @@ async function callClaude(apiKey, model, systemPrompt, userContent, forceJson = 
 
   let res;
   try {
-    res = await fetch(endpoint, {
+    res = await fetch(OPENROUTER_CHAT_URL, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -346,23 +292,23 @@ async function callClaude(apiKey, model, systemPrompt, userContent, forceJson = 
     });
   } catch (e) {
     const msg = e?.name === 'AbortError'
-      ? `Claude request timed out after ${timeoutMs / 1000}s`
+      ? `OpenRouter request timed out after ${timeoutMs / 1000}s`
       : (e?.message ?? String(e));
-    throw new Error(`Claude network error: ${msg}`);
+    throw new Error(`OpenRouter network error: ${msg}`);
   } finally {
     clearTimeout(t);
   }
 
+  const rawErr = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Claude API error ${res.status}: ${err?.error?.message ?? res.statusText}`);
+    const detail = rawErr?.error?.message ?? rawErr?.message ?? res.statusText;
+    throw new Error(`OpenRouter API error ${res.status}: ${detail}`);
   }
 
-  const data = await res.json();
-  const text = data?.content?.[0]?.text ?? '';
-  if (!text) throw new Error('Claude returned an empty response.');
-  // When using assistant prefill the '{' is not echoed back — prepend it
-  return forceJson ? '{' + text : text;
+  const data = rawErr;
+  const text = openRouterMessageContent(data?.choices?.[0]?.message);
+  if (!text) throw new Error('OpenRouter returned an empty response.');
+  return text;
 }
 
 /**

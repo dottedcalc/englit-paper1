@@ -124,6 +124,147 @@ async function withRetry(fn, { label = 'op', tries = 3, baseMs = 1200 } = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// MODEL TIERS + TYPICAL-RUN COST (UI)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const KEY_MODEL_TIER = 'ib-grader-model-tier';
+
+const OPENROUTER_MODELS_BY_TIER = {
+  premium: [
+    { id: 'anthropic/claude-opus-4.6', label: 'Claude Opus 4.6' },
+    { id: 'openai/gpt-5.4-pro', label: 'GPT-5.4 Pro' },
+  ],
+  paid: [
+    { id: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
+    { id: 'openai/gpt-5.4', label: 'GPT-5.4' },
+    { id: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview)' },
+  ],
+  accessible: [
+    { id: 'deepseek/deepseek-chat-v3.0324', label: 'DeepSeek V3' },
+    { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)' },
+  ],
+  free: [
+    { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Instruct (free)' },
+    { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (free)' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super (free)' },
+  ],
+};
+
+const MODEL_TIER_ORDER = ['premium', 'paid', 'accessible', 'free'];
+
+function allKnownOpenRouterModelIds() {
+  const s = new Set();
+  for (const t of MODEL_TIER_ORDER) {
+    for (const row of OPENROUTER_MODELS_BY_TIER[t] ?? []) s.add(row.id);
+  }
+  return s;
+}
+
+function tierForModelId(modelId) {
+  for (const t of MODEL_TIER_ORDER) {
+    if ((OPENROUTER_MODELS_BY_TIER[t] ?? []).some((r) => r.id === modelId)) return t;
+  }
+  return null;
+}
+
+/** Mirrors `readEssaySequentiallyFromChunks` holistic scheduling (≥20% read, every 2 chunks + last). */
+function countHolisticPassesForChunkCount(n) {
+  let h = 0;
+  for (let i = 0; i < n; i++) {
+    const runHolistic = (i + 1) % 2 === 0 || i === n - 1;
+    const chunkPct = (i + 1) / n;
+    if (runHolistic && chunkPct >= 0.2) h++;
+  }
+  return h;
+}
+
+/**
+ * Rough token/call profile for a typical full workflow (reading + holistics + one A–D score call).
+ * Numbers are order-of-magnitude only (large shared system prompts every request).
+ */
+const TYPICAL_RUN_PROFILE = (() => {
+  const nChunks = 26;
+  const holistics = countHolisticPassesForChunkCount(nChunks);
+  const CHUNK_IN = 11_800;
+  const CHUNK_OUT = 1_900;
+  const HOL_IN = 13_200;
+  const HOL_OUT = 1_100;
+  const SCORE_IN = 15_500;
+  const SCORE_OUT = 2_100;
+  const readCalls = nChunks;
+  const scoreCalls = 1;
+  const totalCalls = readCalls + holistics + scoreCalls;
+  const inputTok = readCalls * CHUNK_IN + holistics * HOL_IN + SCORE_IN;
+  const outputTok = readCalls * CHUNK_OUT + holistics * HOL_OUT + SCORE_OUT;
+  return {
+    nChunks,
+    holistics,
+    readCalls,
+    scoreCalls,
+    totalCalls,
+    inputTok,
+    outputTok,
+  };
+})();
+
+let _openRouterPricingMap = null;
+
+async function fetchOpenRouterPricingMap() {
+  if (_openRouterPricingMap) return _openRouterPricingMap;
+  const res = await fetch('https://openrouter.ai/api/v1/models');
+  if (!res.ok) throw new Error(`OpenRouter models ${res.status}`);
+  const data = await res.json();
+  const map = Object.create(null);
+  for (const m of data.data ?? []) {
+    map[m.id] = m.pricing ?? {};
+  }
+  _openRouterPricingMap = map;
+  return map;
+}
+
+function parseOpenRouterUsdPerToken(s) {
+  if (s == null || s === '') return 0;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatUsdEstimate(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  if (n === 0) return '$0.00';
+  if (n < 0.005) return `≈ $${n.toFixed(4)}`;
+  if (n < 1) return `≈ $${n.toFixed(3)}`;
+  return `≈ $${n.toFixed(2)}`;
+}
+
+function populateModelSelectForTier(selectEl, tier, preferredModelId) {
+  if (!selectEl) return;
+  const rows = OPENROUTER_MODELS_BY_TIER[tier] ?? [];
+  selectEl.innerHTML = '';
+  for (const { id, label } of rows) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = label;
+    opt.dataset.tier = tier;
+    selectEl.appendChild(opt);
+  }
+  const ids = new Set(rows.map((r) => r.id));
+  const pick = preferredModelId && ids.has(preferredModelId) ? preferredModelId : rows[0]?.id;
+  if (pick) {
+    selectEl.value = pick;
+    setModel(pick);
+  }
+}
+
+function setActiveTierButton(tierBar, tier) {
+  if (!tierBar) return;
+  for (const btn of tierBar.querySelectorAll('.model-tier-btn')) {
+    const on = btn.dataset.tier === tier;
+    btn.classList.toggle('model-tier-btn--active', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // SEQUENTIAL READER
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -147,7 +288,7 @@ function initialNotes() {
   };
 }
 
-// ── Response schemas (Gemini enforces these server-side; Claude sees them via prompt) ──
+// ── Response schemas (document expected JSON shape in prompts; API uses JSON object mode) ──
 
 const ANNOTATION_TYPES = [
   'A_STAR','A_CHECK','A_CROSS','A_QUESTION','A_CURVY','A_EXCLAIM',
@@ -220,7 +361,7 @@ const OI_BAND_OBJ_SCHEMA = {
     position:   { type: 'INTEGER' },
     confidence: { type: 'STRING', enum: ['high', 'medium', 'low', 'unknown'] },
     note:       { type: 'STRING' },
-    /** String enum (Gemini). Net rung change on 9-rung scale; app recalculates from band+position. */
+    /** String enum in JSON. Net rung change on 9-rung scale; app recalculates from band+position. */
     shift:      { type: 'STRING', enum: HOLISTIC_SHIFT_STRING_ENUM },
   },
   required: ['band', 'position', 'confidence', 'note', 'shift'],
@@ -2378,15 +2519,79 @@ async function handleRunAll() {
 // BOOT
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const MODEL_TIER_COPY = {
+  premium:    { lead: 'Premium tier',    rest: ' — Top models on OpenRouter; expect the highest per-token cost.' },
+  paid:       { lead: 'Paid tier',       rest: ' — Strong default models at typical commercial rates.' },
+  accessible: { lead: 'Accessible tier', rest: ' — Mid-cost options with solid capability.' },
+  free:       { lead: 'Free routing',    rest: ' — Uses OpenRouter :free endpoints (shared quotas, variable latency).' },
+};
+
+async function updateModelCostPanel(modelId) {
+  const callsEl = $('modelCostCalls');
+  const inEl    = $('modelCostIn');
+  const outEl   = $('modelCostOut');
+  const usdEl   = $('modelCostUsd');
+  const rateEl  = $('modelCostRates');
+  const errEl   = $('modelCostError');
+  const p = TYPICAL_RUN_PROFILE;
+  if (callsEl) {
+    callsEl.textContent = `${p.totalCalls} total (${p.readCalls} chunk reads + ${p.holistics} holistic + ${p.scoreCalls} score)`;
+  }
+  if (inEl)  inEl.textContent  = `~${p.inputTok.toLocaleString()} (prompt)`;
+  if (outEl) outEl.textContent = `~${p.outputTok.toLocaleString()} (completion)`;
+  if (usdEl) usdEl.textContent = '…';
+  if (rateEl) rateEl.textContent = '';
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  try {
+    const map = await fetchOpenRouterPricingMap();
+    const pr = map[modelId] ?? {};
+    const pin = parseOpenRouterUsdPerToken(pr.prompt);
+    const pout = parseOpenRouterUsdPerToken(pr.completion);
+    const cost = p.inputTok * pin + p.outputTok * pout;
+    if (usdEl) usdEl.textContent = formatUsdEstimate(cost);
+    if (rateEl) {
+      const pm = pin * 1e6;
+      const cm = pout * 1e6;
+      rateEl.textContent = `OpenRouter list: $${pm.toFixed(4)}/M prompt · $${cm.toFixed(4)}/M completion`;
+    }
+  } catch (e) {
+    if (usdEl) usdEl.textContent = '—';
+    if (rateEl) rateEl.textContent = '';
+    if (errEl) {
+      errEl.hidden = false;
+      errEl.textContent = `Could not load live rates: ${e?.message ?? e}. Cost left blank — see openrouter.ai/models.`;
+    }
+  }
+}
+
 function boot() {
   const apiKeyEl  = $('apiKey');
   const modelEl   = $('modelSelect');
+  const tierBar   = $('modelTierBar');
   const sourceEl  = $('sourceText');
   const studentEl = $('studentParagraph');
 
   // Restore persisted inputs
   if (apiKeyEl)  apiKeyEl.value  = getApiKey();
-  if (modelEl)   modelEl.value   = getModel();
+
+  const knownIds = allKnownOpenRouterModelIds();
+  let savedModel = getModel();
+  if (!knownIds.has(savedModel)) {
+    savedModel = DEFAULT_OPENROUTER_MODEL;
+    setModel(savedModel);
+  }
+
+  let tier = tierForModelId(savedModel)
+    ?? localStorage.getItem(KEY_MODEL_TIER)
+    ?? 'free';
+  if (!MODEL_TIER_ORDER.includes(tier)) tier = 'free';
+  localStorage.setItem(KEY_MODEL_TIER, tier);
+
+  if (modelEl) {
+    populateModelSelectForTier(modelEl, tier, savedModel);
+  }
+  setActiveTierButton(tierBar, tier);
   if (sourceEl)  sourceEl.value  = localStorage.getItem(KEY_SOURCE) ?? '';
   if (studentEl) studentEl.value = localStorage.getItem(KEY_STUDENT) ?? '';
 
@@ -2439,7 +2644,11 @@ function boot() {
 
   // Persist inputs
   apiKeyEl?.addEventListener('change', () => setApiKey(apiKeyEl.value));
-  modelEl?.addEventListener('change',  () => setModel(modelEl.value));
+  modelEl?.addEventListener('change',  () => {
+    setModel(modelEl.value);
+    updateModelNote();
+    void updateModelCostPanel(modelEl.value);
+  });
   sourceEl?.addEventListener('input',  () => localStorage.setItem(KEY_SOURCE, sourceEl.value));
   studentEl?.addEventListener('input', () => {
     localStorage.setItem(KEY_STUDENT, studentEl.value);
@@ -2449,15 +2658,43 @@ function boot() {
     // Wiping on every keystroke would destroy in-progress resume state.
   });
 
-  // Model tier note
+  function currentUiTier() {
+    const active = tierBar?.querySelector('.model-tier-btn--active');
+    return active?.dataset?.tier ?? localStorage.getItem(KEY_MODEL_TIER) ?? 'free';
+  }
+
   function updateModelNote() {
     const noteEl = $('modelTierNote');
-    if (!noteEl || !modelEl) return;
-    const tier = modelEl.selectedOptions[0]?.dataset?.tier ?? '';
+    if (!noteEl) return;
+    const tier = currentUiTier();
     noteEl.className = `model-tier-note model-tier-note--${tier}`;
+    const copy = MODEL_TIER_COPY[tier];
+    const leadEl = noteEl.querySelector('.model-tier-note__lead');
+    const restEl = noteEl.querySelector('.model-tier-note__rest');
+    if (copy && leadEl && restEl) {
+      leadEl.textContent = copy.lead;
+      restEl.textContent = copy.rest;
+    } else if (leadEl && restEl) {
+      leadEl.textContent = '';
+      restEl.textContent = '';
+    }
   }
-  modelEl?.addEventListener('change', updateModelNote);
+
+  tierBar?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.model-tier-btn');
+    if (!btn || !tierBar.contains(btn)) return;
+    const newTier = btn.dataset.tier;
+    if (!newTier || !MODEL_TIER_ORDER.includes(newTier)) return;
+    localStorage.setItem(KEY_MODEL_TIER, newTier);
+    setActiveTierButton(tierBar, newTier);
+    const keep = tierForModelId(getModel()) === newTier ? getModel() : null;
+    populateModelSelectForTier(modelEl, newTier, keep);
+    updateModelNote();
+    void updateModelCostPanel(modelEl?.value ?? getModel());
+  });
+
   updateModelNote();
+  void updateModelCostPanel(modelEl?.value ?? getModel());
 
   // Clear all
   $('clearBtn')?.addEventListener('click', () => {
