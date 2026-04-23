@@ -220,6 +220,26 @@ const KEY_OVERALL    = 'ib-grader-overall';
 
 function getApiKey()            { return localStorage.getItem(KEY_API_KEY) ?? ''; }
 function setApiKey(v)           { localStorage.setItem(KEY_API_KEY, v); }
+
+/** Strip BOM / line breaks from pasted keys; trim ends (OpenRouter keys are single-line). */
+function normalizeApiKey(raw) {
+  return String(raw ?? '')
+    .replace(/^\uFEFF/, '')
+    .replace(/\r|\n/g, '')
+    .trim();
+}
+
+/**
+ * Prefer the live API key field when present (avoids stale localStorage if `change` never fired).
+ * @returns {string}
+ */
+function resolveApiKeyForRequest() {
+  if (typeof document !== 'undefined') {
+    const el = document.getElementById('apiKey');
+    if (el && typeof el.value === 'string') return normalizeApiKey(el.value);
+  }
+  return normalizeApiKey(getApiKey());
+}
 function getModel()             { return localStorage.getItem(KEY_MODEL) ?? DEFAULT_OPENROUTER_MODEL; }
 function setModel(v)            { localStorage.setItem(KEY_MODEL, v); }
 
@@ -236,14 +256,32 @@ function setModel(v)            { localStorage.setItem(KEY_MODEL, v); }
  */
 async function callApi(systemPrompt, userContent, schema = null, forceJson = true) {
   void schema;
-  const apiKey = getApiKey().trim();
+  const apiKey = resolveApiKeyForRequest();
   const model  = getModel();
 
   if (!apiKey) throw new Error('No API key saved. Paste your key in the "Model API" panel.');
 
+  setApiKey(apiKey);
+
   const fullSystem = EXAMINER_TRAINING_BACKGROUND + systemPrompt;
 
   return callOpenRouter(apiKey, model, fullSystem, userContent, forceJson);
+}
+
+/**
+ * Same as {@link callApi} but **without** prepending EXAMINER_TRAINING_BACKGROUND.
+ * Use for passes that must see only the given system + user strings (e.g. descriptor-only evaluation).
+ */
+async function callApiBare(systemPrompt, userContent, schema = null, forceJson = true) {
+  void schema;
+  const apiKey = resolveApiKeyForRequest();
+  const model  = getModel();
+
+  if (!apiKey) throw new Error('No API key saved. Paste your key in the "Model API" panel.');
+
+  setApiKey(apiKey);
+
+  return callOpenRouter(apiKey, model, systemPrompt, userContent, forceJson);
 }
 
 function openRouterMessageContent(message) {

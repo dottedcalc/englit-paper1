@@ -389,6 +389,61 @@ const SCORE_ALL_SCHEMA = {
   required: ['A', 'B', 'C', 'D'],
 };
 
+/**
+ * Official IB criteria text for **evaluation mode only** (bare OpenRouter pass — no examiner training).
+ * Literature A HL Paper 1 descriptors as supplied for rubric alignment checks.
+ */
+const OFFICIAL_IB_LITERATURE_HL_PAPER1_CRITERIA_FOR_EVAL = `IB ENGLISH LITERATURE A: HIGHER LEVEL PAPER 1
+Responses at Literature HL are assessed using the same four criteria, as outlined below:
+
+Criterion A: Knowledge and Understanding
+-How well does the candidate demonstrate an understanding of the text and draw reasoned conclusions from implications in it?
+-How well are ideas supported by references to the text?
+Score Level Descriptor
+0 The work does not reach a standard described by the descriptors below.
+1 The response demonstrates little understanding of the literal meaning of the text. References to the text are infrequent or are rarely appropriate.
+2 The response demonstrates some understanding of the literal meaning of the text. References to the text are at times appropriate.
+3 The response demonstrates an understanding of the literal meaning of the text. There is a satisfactory interpretation of some implications of the text. References to the text are generally relevant and mostly support the candidate's ideas.
+4 The response demonstrates a thorough understanding of the literal meaning of the text. There is a convincing interpretation of many implications of the text. References to the text are relevant and support the candidate's ideas.
+5 The response demonstrates a thorough and perceptive understanding of the literal meaning of the text. There is a convincing and insightful interpretation of larger implications and subtleties of the text. References to the text are well-chosen and effectively support the candidate's ideas
+
+Criterion B: Analysis and Interpretation
+-To what extent does the candidate analyze and evaluate how textual features and/or authorial choices shape meaning?
+Score Level Descriptor
+0 The work does not reach a standard described by the descriptors below.
+1 The response is descriptive and/or demonstrates little relevant analysis of textual features and/or authorial choices.
+2 The response demonstrates some appropriate analysis of textual features and/or authorial choices but is reliant on description.
+3 The response demonstrates a generally appropriate analysis of textual features and/or authorial choices.
+4 The response demonstrates an appropriate and at times insightful analysis of textual features and/or authorial choices. There is a good evaluation of how such features and/or choices shape meaning.
+5 The response demonstrates an insightful and convincing analysis of textual features and/or authorial choices. There is a very good evaluation of how such features and/or choices shape meaning.
+
+Criterion C: Focus and Organization
+-How well organized, coherent and focused is the presentation of ideas?
+Score Level Descriptor
+0 The work does not reach a standard described by the descriptors below.
+1 Little organization is apparent in the presentation of ideas. No discernible focus is apparent in the analysis.
+2 Some organization is apparent in the presentation of ideas. There is little focus in the analysis.
+3 The presentation of ideas is adequately organized in a generally coherent manner. There is some focus in the analysis.
+4 The presentation of ideas is well organized and mostly coherent. The analysis is adequately focused.
+5 The presentation of ideas is effectively organized and coherent. The analysis is well focused.
+
+Criterion D: Language
+-How clear, varied and accurate is the language?
+-How appropriate is the choice of register and style? ("Register" refers, in this context, to the candidate's use of elements such as vocabulary, tone, sentence structure and terminology appropriate to the analysis).
+Score Level Descriptor
+0 The work does not reach a standard described by the descriptors below.
+1 Language is rarely clear and appropriate; there are many errors in grammar, vocabulary and sentence construction and little sense of register and style.
+2 Language is sometimes clear and carefully chosen; grammar, vocabulary and sentence construction are fairly accurate, although errors and inconsistencies are apparent; the register and style are to some extent appropriate to the task.
+3 Language is clear and carefully chosen with an adequate degree of accuracy in grammar, vocabulary and sentence construction despite some lapses; register and style are mostly appropriate to the task.
+4 Language is clear and carefully chosen, with a good degree of accuracy in grammar, vocabulary and sentence construction; register and style are consistently appropriate to the task.
+5 Language is very clear, effective, carefully chosen and precise, with a high degree of accuracy in grammar, vocabulary and sentence construction; register and style are effective and appropriate to the task.`;
+
+const EVAL_MODE_CRITERION_LABELS = {
+  A: 'A — Knowledge and Understanding',
+  B: 'B — Analysis and Interpretation',
+  C: 'C — Focus and Organization',
+  D: 'D — Language',
+};
 
 /** Return a human-readable paragraph label for a given chunk index. */
 function getParaLabel(chunkIdx, paraStartSet) {
@@ -1126,214 +1181,133 @@ async function scoreAllCriteria(notes, annotations, chunks) {
   return parseJson(raw);
 }
 
-/** Bills are per token; in-browser we measure UTF-16 code units then convert (see TYPICAL_RUN_PROFILE.methodologyLabel). */
-function approxInputTokensFromChars(charCount) {
-  return Math.max(0, Math.ceil(charCount / 4));
-}
+/** System side = task instructions + official HL descriptors only (no app examiner training). */
+function buildEvaluationModeSystemPrompt() {
+  return `You are assessing one candidate response for IB English Literature A, Higher Level Paper 1.
 
-function approxOutputTokensFromChars(charCount) {
-  return Math.max(0, Math.ceil(charCount / 3.5));
-}
+Use ONLY the official criteria and level descriptors in the block below. Do not use any other rubric, training, or procedure. Read the source passage and the full candidate response, then award integer marks from 0 to 5 for each criterion (A–D), independently, strictly according to those descriptors.
 
-function typicalRunSyntheticWordBlob(targetWords, seedPrefix) {
-  const cycl = ['analysis', 'argument', 'author', 'image', 'reader', 'essay', 'meaning', 'effect', 'structure', 'language', 'source', 'passage', 'technique', 'claim', 'evidence'];
-  const parts = [];
-  for (let w = 0; w < targetWords; w++) {
-    parts.push(`${cycl[w % cycl.length]}-${seedPrefix}${w}`);
-  }
-  return parts.join(' ');
-}
+Return one JSON object with top-level keys "A", "B", "C", "D". Each value must be an object with:
+- "score": integer 0–5
+- "keyStrengths": array of 1–3 short strings
+- "keyWeaknesses": array of 1–3 short strings
+- "bandBoundary": one sentence — why this score and not the adjacent level
+- "justification": 3–5 sentences of professional feedback tied explicitly to the descriptors below
 
-function typicalRunSyntheticEssayForSplit(totalWords, paragraphs) {
-  const per = Math.floor(totalWords / paragraphs);
-  const paras = [];
-  for (let p = 0; p < paragraphs; p++) {
-    const extra = p === paragraphs - 1 ? totalWords - per * paragraphs : 0;
-    paras.push(typicalRunSyntheticWordBlob(per + extra, `p${p}`));
-  }
-  return paras.join('\n\n');
-}
+No markdown. No commentary outside the JSON.
 
-function syntheticNotesForTypicalRun(chunkIndex, totalChunks) {
-  const pct = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-  const thesis = chunkIndex >= 2
-    ? 'The student argues that the author uses patterning and contrast to qualify human frustration within social order.'
-    : '';
-  const nodeCount = Math.max(1, Math.min(20, Math.round((chunkIndex + 1) * (20 / totalChunks))));
-  const reasoning = Array.from({ length: nodeCount }, (_, i) => ({
-    text: `Reasoning node ${i + 1}: links ${['motif', 'structure', 'register', 'tone'][i % 4]} to the essay’s line on meaning; execution reads ${['thin', 'mixed', 'competent', 'clear'][i % 4]} at ${pct}% read.`,
-    depth: i % 3,
-  }));
-  const concerns = chunkIndex >= Math.floor(totalChunks * 0.3)
-    ? ['Macro concern: evidence sometimes outpaces interpretive control.', 'Some paragraphs repeat moves without advancing the thesis line.']
-    : [];
-  return {
-    thesis,
-    reasoning,
-    readerState: `First-read state at chunk ${chunkIndex + 1}/${totalChunks} (~${pct}%): tracking cumulative quality and argument shape.`,
-    concerns,
-    feeling: {
-      A: chunkIndex > 0 ? 'A: local interpretation mostly anchored; occasional generalisation.' : '',
-      B: chunkIndex > 0 ? 'B: technique naming uneven; some sound mechanism–effect, some shallow.' : '',
-      C: chunkIndex > 0 ? 'C: organisation broadly followable; mid-essay drift in focus.' : '',
-      D: chunkIndex > 0 ? 'D: academic register held; phrasing sometimes imprecise.' : '',
-    },
-    overallImpression: initialNotes().overallImpression,
-  };
-}
+═══════════════════════════════════════════════════════════════════════════════
+OFFICIAL CRITERIA (sole rubric for this task)
+═══════════════════════════════════════════════════════════════════════════════
 
-function syntheticOverallImpressionForTypicalRun(chunkIndexEnd, totalChunks) {
-  const pct = Math.round(((chunkIndexEnd + 1) / totalChunks) * 100);
-  const para = (band, pos) => {
-    const base = 'Holistic read: extent and quality across the essay so far; anchor to intro and body balance. ';
-    const filler = 'Wording scales with read progress. '.repeat(3) + 'x'.repeat(Math.min(320, 80 + pct * 3));
-    return {
-      band, position: pos, confidence: pct <= 40 ? 'low' : pct < 70 ? 'medium' : 'medium',
-      shift: '0',
-      note: base + filler,
-    };
-  };
-  return {
-    A: para('mid', 2),
-    B: para('mid', 2),
-    C: para('mid', 2),
-    D: para('mid', 2),
-  };
-}
-
-function syntheticAnnotationsForTypicalRunUpTo(endChunkIdx) {
-  const types = ['A_CHECK', 'B_CHECK', 'B_CROSS', 'C_CHECK', 'D_CHECK', 'A_STAR'];
-  const out = [];
-  for (let c = 0; c <= endChunkIdx; c++) {
-    const count = 4 + (c % 3);
-    for (let j = 0; j < count; j++) {
-      out.push({
-        chunkIndex: c,
-        criterion: ['A', 'B', 'C', 'D'][j % 4],
-        type: types[(c + j) % types.length],
-        anchor: `anchor phrase chunk ${c} mark ${j}`,
-        note: 'Examiner note: ties observation to criterion expectations for calibration.',
-      });
-    }
-  }
-  return out;
-}
-
-function syntheticChunkReadResponseJson(totalChunks, chunkIndex) {
-  const notes = syntheticNotesForTypicalRun(chunkIndex, totalChunks);
-  const annotations = Array.from({ length: 5 }, (_, j) => ({
-    target: j % 2 === 0 ? 'current' : 'prev',
-    anchor: `short anchor text ${chunkIndex} ${j}`,
-    criterion: ['A', 'B', 'C', 'D'][j % 4],
-    type: ['A_CHECK', 'B_CHECK', 'C_SIGNPOST', 'D_AWK', 'B_STAR'][j],
-    note: 'Brief rationale for this mark.',
-  }));
-  return JSON.stringify({ notes, annotations });
-}
-
-function syntheticHolisticResponseJson(totalChunks, chunkIndexEnd) {
-  return JSON.stringify({ overallImpression: syntheticOverallImpressionForTypicalRun(chunkIndexEnd, totalChunks) });
-}
-
-function syntheticScoreAllResponseJson() {
-  const mk = (s) => ({
-    score: s,
-    keyStrengths: ['Sustained argument discipline on key paragraphs.', 'Some precise technique–effect moves in the body.'],
-    keyWeaknesses: ['Uneven depth when moving beyond literal reading.', 'Organisation drifts in later sections.'],
-    bandBoundary: 'This is a representative boundary sentence for cost sizing, not a real mark.',
-    justification: 'Representative four-sentence justification body for token estimate. '.repeat(2)
-      + 'It mirrors the requested length in the scorer prompt without claiming a real essay result.',
-  });
-  return JSON.stringify({ A: mk(3), B: mk(3), C: mk(3), D: mk(3) });
+${OFFICIAL_IB_LITERATURE_HL_PAPER1_CRITERIA_FOR_EVAL}`;
 }
 
 /**
- * Sizes the “typical essay run” by concatenating the **exact** strings this app sends (examiner background + builders),
- * using a synthetic source/essay run through `splitIntoChunks`. Output side uses **representative JSON** matching each schema’s shape.
+ * User message for evaluation mode: **only** the unseen passage and the candidate essay as plain text.
+ * Do not pass reading notes, holistic impression, annotation lists, or any other pipeline artefacts.
  */
-function computeTypicalRunProfileFromPrompts() {
-  const scenario = {
-    sourceWords: 650,
-    essayWords: 900,
-    bodyParagraphs: 4,
-  };
-  const sourceText = typicalRunSyntheticWordBlob(scenario.sourceWords, 'src');
-  const studentText = typicalRunSyntheticEssayForSplit(scenario.essayWords, scenario.bodyParagraphs);
-  const { chunks, paraStartSet } = splitIntoChunks(studentText);
-  const nChunks = chunks.length;
-  const holistics = countHolisticPassesForChunkCount(nChunks);
-  const bg = EXAMINER_TRAINING_BACKGROUND;
-
-  let sumInputChars = 0;
-  let sumOutChars = 0;
-
-  for (let i = 0; i < nChunks; i++) {
-    const notes = syntheticNotesForTypicalRun(i, nChunks);
-    const prev = i > 0 ? chunks[i - 1] : null;
-    const prev2 = i > 1 ? chunks[i - 2] : null;
-    const next = i < nChunks - 1 ? chunks[i + 1] : null;
-    const paraLabel = getParaLabel(i, paraStartSet);
-    const sys = buildReadChunkSystemPrompt(i, nChunks, paraLabel);
-    const usr = buildReadChunkUserMessage(sourceText, prev2, prev, chunks[i], next, notes, i, nChunks, paraLabel);
-    sumInputChars += (bg + sys + usr).length;
-    sumOutChars += syntheticChunkReadResponseJson(nChunks, i).length;
-  }
-
-  for (let i = 0; i < nChunks; i++) {
-    const runHolistic = (i + 1) % 2 === 0 || i === nChunks - 1;
-    const chunkPct = (i + 1) / nChunks;
-    if (!(runHolistic && chunkPct >= 0.2)) continue;
-
-    const chunkIndexEnd = i;
-    const annotations = syntheticAnnotationsForTypicalRunUpTo(chunkIndexEnd);
-    const priorOi = chunkIndexEnd > 0
-      ? syntheticOverallImpressionForTypicalRun(chunkIndexEnd - 1, nChunks)
-      : initialNotes().overallImpression;
-    const notesForHolistic = {
-      ...syntheticNotesForTypicalRun(chunkIndexEnd, nChunks),
-      overallImpression: priorOi,
-    };
-
-    const hSys = buildHolisticImpressionSystemPrompt(chunkIndexEnd, nChunks);
-    const hUsr = buildHolisticPassUserMessage(sourceText, chunks, paraStartSet, chunkIndexEnd, nChunks, notesForHolistic, annotations);
-    sumInputChars += (bg + hSys + hUsr).length;
-    sumOutChars += syntheticHolisticResponseJson(nChunks, chunkIndexEnd).length;
-  }
-
-  const finalNotes = {
-    ...syntheticNotesForTypicalRun(nChunks - 1, nChunks),
-    overallImpression: syntheticOverallImpressionForTypicalRun(nChunks - 1, nChunks),
-  };
-  const finalAnnotations = syntheticAnnotationsForTypicalRunUpTo(nChunks - 1);
-  const approxWords = nChunks * CHUNK_TARGET_WORDS;
-  const sSys = buildScoreAllCriteriaSystemPrompt(approxWords);
-  const sUsr = buildScoreAllCriteriaUserMessage(finalNotes, buildScoreAllCriteriaAnnBlock(finalAnnotations));
-  sumInputChars += (bg + sSys + sUsr).length;
-  sumOutChars += syntheticScoreAllResponseJson().length;
-
-  const totalCalls = nChunks + holistics + 1;
-  const inputTok = approxInputTokensFromChars(sumInputChars);
-  const outputTok = approxOutputTokensFromChars(sumOutChars);
-
-  return {
-    nChunks,
-    holistics,
-    readCalls: nChunks,
-    scoreCalls: 1,
-    totalCalls,
-    inputTok,
-    outputTok,
-    inputCharsTotal: sumInputChars,
-    outputCharsTotal: sumOutChars,
-    scenario,
-    methodologyLabel:
-      `Prompts: synthetic ${scenario.sourceWords}-word source + ${scenario.essayWords}-word essay → ${nChunks} chunks via splitIntoChunks. `
-      + `Input = Σ char length of EXAMINER_TRAINING_BACKGROUND + each system + user (UTF-16 code units). `
-      + `Output = representative JSON per step; tokens ≈ input_chars÷4, output_chars÷3.5 (real BPE ±~10–25%).`,
-  };
+function buildEvaluationModeUserMessage(rawSourcePassage, rawCandidateEssay) {
+  const src = String(rawSourcePassage ?? '').trim();
+  const essay = String(rawCandidateEssay ?? '').trim();
+  return `SOURCE PASSAGE:\n\n${src}\n\n---\n\nCANDIDATE RESPONSE (full essay):\n\n${essay}`;
 }
 
-const TYPICAL_RUN_PROFILE = computeTypicalRunProfileFromPrompts();
+/**
+ * Descriptor-only scoring pass: `callApiBare` (no EXAMINER_TRAINING_BACKGROUND). Prompts contain only
+ * official criteria + instructions on the system side and source + essay on the user side — never notes/holistic/annotations.
+ */
+async function scoreOfficialCriteriaEvaluationMode(rawSourcePassage, rawCandidateEssay) {
+  const system = buildEvaluationModeSystemPrompt();
+  const user = buildEvaluationModeUserMessage(rawSourcePassage, rawCandidateEssay);
+  const raw = await callApiBare(system, user, SCORE_ALL_SCHEMA);
+  return parseJson(raw);
+}
+
+function clearEvaluationModePanel() {
+  const panel = $('evaluationModePanel');
+  const body = $('evaluationModeTableBody');
+  const foot = $('evaluationModeTableFoot');
+  const det = $('evaluationModeDetails');
+  if (panel) panel.hidden = true;
+  if (body) body.innerHTML = '';
+  if (foot) foot.innerHTML = '';
+  if (det) det.innerHTML = '';
+}
+
+/** @param {Record<string, any>} standardResult @param {Record<string, any>} evalResult */
+function renderEvaluationComparePanel(standardResult, evalResult) {
+  const panel = $('evaluationModePanel');
+  const body = $('evaluationModeTableBody');
+  const foot = $('evaluationModeTableFoot');
+  const det = $('evaluationModeDetails');
+  if (!panel || !body || !foot || !det) return;
+
+  let sumStd = 0;
+  let sumEv = 0;
+  const rows = ['A', 'B', 'C', 'D'].map((k) => {
+    const s0 = Math.max(0, Math.min(5, Math.round(Number(standardResult[k]?.score ?? NaN))));
+    const e0 = Math.max(0, Math.min(5, Math.round(Number(evalResult[k]?.score ?? NaN))));
+    if (Number.isFinite(s0)) sumStd += s0;
+    if (Number.isFinite(e0)) sumEv += e0;
+    const delta = (Number.isFinite(e0) && Number.isFinite(s0)) ? e0 - s0 : null;
+    const deltaCell = delta === null ? '—' : (delta === 0 ? '0' : (delta > 0 ? `+${delta}` : String(delta)));
+    const deltaClass = delta === null || delta === 0 ? '' : (delta > 0 ? ' eval-compare-table__delta--up' : ' eval-compare-table__delta--down');
+    return `<tr>
+      <th scope="row">${EVAL_MODE_CRITERION_LABELS[k]}</th>
+      <td class="eval-compare-table__num">${Number.isFinite(s0) ? s0 : '—'}</td>
+      <td class="eval-compare-table__num">${Number.isFinite(e0) ? e0 : '—'}</td>
+      <td class="eval-compare-table__delta${deltaClass}">${deltaCell}</td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML = rows;
+  const totalDelta = sumEv - sumStd;
+  const totalDeltaStr = totalDelta === 0 ? '0' : (totalDelta > 0 ? `+${totalDelta}` : String(totalDelta));
+  const totalDeltaClass = totalDelta === 0 ? '' : (totalDelta > 0 ? ' eval-compare-table__delta--up' : ' eval-compare-table__delta--down');
+  foot.innerHTML = `<tr class="eval-compare-table__total">
+    <th scope="row">Total / 20</th>
+    <td class="eval-compare-table__num"><strong>${sumStd}</strong></td>
+    <td class="eval-compare-table__num"><strong>${sumEv}</strong></td>
+    <td class="eval-compare-table__delta${totalDeltaClass}"><strong>${totalDeltaStr}</strong></td>
+  </tr>`;
+
+  const detailBlocks = ['A', 'B', 'C', 'D'].map((k) => {
+    const d = evalResult[k];
+    if (!d) return '';
+    const jus = (d.justification ?? '').trim();
+    const bb = (d.bandBoundary ?? '').trim();
+    const st = (d.keyStrengths ?? []).map((x) => DOMPurify.sanitize(String(x))).filter(Boolean);
+    const wk = (d.keyWeaknesses ?? []).map((x) => DOMPurify.sanitize(String(x))).filter(Boolean);
+    if (!jus && !bb && !st.length && !wk.length) return '';
+    return `<div class="eval-mode-detail-block">
+      <h4 class="eval-mode-detail-block__title">${EVAL_MODE_CRITERION_LABELS[k]} — descriptor pass</h4>
+      ${jus ? `<p class="eval-mode-detail-block__p">${DOMPurify.sanitize(jus)}</p>` : ''}
+      ${st.length ? `<p class="eval-mode-detail-block__p"><span class="eval-mode-detail-block__label">Strengths</span> ${st.join('; ')}</p>` : ''}
+      ${wk.length ? `<p class="eval-mode-detail-block__p"><span class="eval-mode-detail-block__label">Weaknesses</span> ${wk.join('; ')}</p>` : ''}
+      ${bb ? `<p class="eval-mode-detail-block__band">${DOMPurify.sanitize(bb)}</p>` : ''}
+    </div>`;
+  }).join('');
+
+  det.innerHTML = detailBlocks
+    ? `<h4 class="eval-mode-details__heading">Justification (descriptor pass)</h4>${detailBlocks}`
+    : '';
+  panel.hidden = false;
+}
+
+/** Fixed token/call totals for the pricing panel; re-run scripts/calibrate-typical-run.mjs after prompt changes. */
+const TYPICAL_RUN_PROFILE = Object.freeze({
+  nChunks: 26,
+  holistics: 11,
+  readCalls: 26,
+  scoreCalls: 1,
+  totalCalls: 38,
+  inputTok: 502_409,
+  outputTok: 28_991,
+  inputCharsTotal: 2_009_635,
+  outputCharsTotal: 101_468,
+  scenario: { sourceWords: 650, essayWords: 900, bodyParagraphs: 4 },
+});
 
 /** Legacy per-criterion scorer kept for compatibility (not used by new Score button). */
 async function scoreFromNotes(criterion, notes, chunks) {
@@ -2513,6 +2487,8 @@ const SCORE_LOCKED_KEY = 'ib-grader-score-locked';
 
 function setScoreBtnVisible(visible) {
   const btn = $('scoreBtn');
+  const evalWrap = $('evaluationModeWrap');
+  if (evalWrap) evalWrap.hidden = !visible;
   if (!btn) return;
   btn.hidden = !visible;
   if (!visible) return;
@@ -2554,6 +2530,12 @@ function lockScoreBtn() {
 /** Score all four criteria in one API call, then populate tiles and lock. */
 async function handleScore() {
   clearError();
+  const evalMode = $('evaluationModeCheck')?.checked ?? false;
+  const sourceTextForEval = $('sourceText')?.value?.trim() ?? '';
+  if (evalMode && !sourceTextForEval) {
+    return showError('Evaluation mode requires the source passage in “Source text”.');
+  }
+
   const notes = (() => {
     try { return JSON.parse(localStorage.getItem(NOTES_CACHE_KEY) ?? '{}').notes ?? null; } catch { return null; }
   })();
@@ -2563,11 +2545,11 @@ async function handleScore() {
   if (!notes) return showError('No reading notes found — run the analysis first.');
 
   // Reconstruct chunks just for word-count estimate
-  const studentText = localStorage.getItem(KEY_STUDENT) ?? '';
+  const studentText = (localStorage.getItem(KEY_STUDENT) ?? $('studentParagraph')?.value ?? '').trim();
   const chunks = loadFixedChunksForStudentText(studentText);
 
   setScoreBtnBusy(true);
-  showProgress('Scoring A–D…', null);
+  showProgress(evalMode ? 'Scoring (standard pipeline)…' : 'Scoring A–D…', null);
 
   try {
     const result = await scoreAllCriteria(notes, annotations, chunks);
@@ -2581,6 +2563,20 @@ async function handleScore() {
       setTileScore(crit, score);
     }
     clearCriterionTileDetails();
+
+    if (evalMode) {
+      showProgress('Official HL descriptors pass…', null);
+      try {
+        // Evaluation pass: raw source + essay only (same as textareas / KEY_STUDENT — not reading notes or annotations).
+        const evalResult = await scoreOfficialCriteriaEvaluationMode(sourceTextForEval, studentText);
+        renderEvaluationComparePanel(result, evalResult);
+      } catch (ee) {
+        clearEvaluationModePanel();
+        showError(`Standard scoring saved. Evaluation mode failed: ${ee.message}`);
+      }
+    } else {
+      clearEvaluationModePanel();
+    }
 
     showProgress('Scored', 100);
     setTimeout(hideProgress, 800);
@@ -2733,18 +2729,16 @@ async function updateModelCostPanel(modelId) {
   const usdEl   = $('modelCostUsd');
   const rateEl  = $('modelCostRates');
   const errEl   = $('modelCostError');
-  const methEl  = $('modelCostMethodology');
   const p = TYPICAL_RUN_PROFILE;
   if (callsEl) {
-    callsEl.textContent = `${p.totalCalls} total (${p.readCalls} chunk reads + ${p.holistics} holistic + ${p.scoreCalls} score)`;
+    callsEl.textContent = `${p.totalCalls} API calls`;
   }
   if (inEl) {
-    inEl.textContent = `~${p.inputTok.toLocaleString()} prompt tok (≈${p.inputCharsTotal.toLocaleString()} chars ÷4)`;
+    inEl.textContent = `~${p.inputTok.toLocaleString()}`;
   }
   if (outEl) {
-    outEl.textContent = `~${p.outputTok.toLocaleString()} completion tok (≈${p.outputCharsTotal.toLocaleString()} chars ÷3.5)`;
+    outEl.textContent = `~${p.outputTok.toLocaleString()}`;
   }
-  if (methEl) methEl.textContent = p.methodologyLabel ?? '';
   if (usdEl) usdEl.textContent = '…';
   if (rateEl) rateEl.textContent = '';
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
@@ -2785,8 +2779,13 @@ function boot() {
   const sourceEl  = $('sourceText');
   const studentEl = $('studentParagraph');
 
-  // Restore persisted inputs
-  if (apiKeyEl)  apiKeyEl.value  = getApiKey();
+  // Restore persisted inputs (normalize stored key once so pasted line breaks / BOM don’t break Bearer)
+  if (apiKeyEl) {
+    const raw = getApiKey();
+    const k = normalizeApiKey(raw);
+    apiKeyEl.value = k;
+    if (k !== raw) setApiKey(k);
+  }
 
   const knownIds = allKnownOpenRouterModelIds();
   let savedModel = getModel();
@@ -2865,7 +2864,9 @@ function boot() {
   wireCounter('studentParagraph', 'paraCharCount');
 
   // Persist inputs
-  apiKeyEl?.addEventListener('change', () => setApiKey(apiKeyEl.value));
+  const persistApiKey = () => setApiKey(normalizeApiKey(apiKeyEl?.value ?? ''));
+  apiKeyEl?.addEventListener('input', persistApiKey);
+  apiKeyEl?.addEventListener('change', persistApiKey);
   modelEl?.addEventListener('change',  () => {
     setModel(modelEl.value);
     updateModelNote();
@@ -2946,6 +2947,10 @@ function boot() {
     const revealWrap = $('ibOverallRevealWrap');
     if (lockedMsg)  lockedMsg.hidden = false;
     if (revealWrap) revealWrap.hidden = true;
+
+    clearEvaluationModePanel();
+    const evalChk = $('evaluationModeCheck');
+    if (evalChk) evalChk.checked = false;
 
     setViewDetailsBtnVisible(false);
     setScoreBtnVisible(false);
