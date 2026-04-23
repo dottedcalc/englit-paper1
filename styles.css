@@ -1646,15 +1646,11 @@ h1 {
 }
 
 .model-tier-note--premium .model-tier-note__lead {
-  color: #7a3db8;
-}
-
-.model-tier-note--paid .model-tier-note__lead {
   color: #156bb8;
 }
 
 .model-tier-note--accessible .model-tier-note__lead {
-  color: #9a4d16;
+  color: #2178c3;
 }
 
 .model-tier-note--free .model-tier-note__lead {
@@ -1711,18 +1707,13 @@ h1 {
 }
 
 .model-tier-btn--premium.model-tier-btn--active {
-  background: linear-gradient(145deg, rgba(122, 61, 184, 0.22), rgba(122, 61, 184, 0.1));
-  border-color: #7a3db8;
-}
-
-.model-tier-btn--paid.model-tier-btn--active {
-  background: linear-gradient(145deg, rgba(21, 107, 184, 0.2), rgba(21, 107, 184, 0.08));
+  background: linear-gradient(145deg, rgba(21, 107, 184, 0.22), rgba(21, 107, 184, 0.09));
   border-color: #156bb8;
 }
 
 .model-tier-btn--accessible.model-tier-btn--active {
-  background: linear-gradient(145deg, rgba(154, 77, 22, 0.2), rgba(154, 77, 22, 0.08));
-  border-color: #9a4d16;
+  background: linear-gradient(145deg, rgba(33, 120, 195, 0.22), rgba(33, 120, 195, 0.09));
+  border-color: #2178c3;
 }
 
 .model-tier-btn--free.model-tier-btn--active {

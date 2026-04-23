@@ -116,14 +116,6 @@
             </button>
             <button
               type="button"
-              class="model-tier-btn model-tier-btn--paid"
-              data-tier="paid"
-              aria-pressed="false"
-            >
-              Paid
-            </button>
-            <button
-              type="button"
               class="model-tier-btn model-tier-btn--accessible"
               data-tier="accessible"
               aria-pressed="false"
@@ -149,9 +141,9 @@
           <div class="model-cost-estimate" id="modelCostEstimate">
             <h3 class="model-cost-estimate__title" id="modelCostHeading">Typical full essay run (estimate)</h3>
             <p class="model-cost-estimate__scenario">
-              Assumes a <strong>~650-word</strong> source extract, <strong>~900-word</strong> student essay (~26 reading
-              chunks), sequential read with holistic updates, then <strong>one</strong> combined A–D scoring call — same
-              pattern as “Run analysis” + “Score A–D”.
+              Estimates use a synthetic <strong>650-word</strong> source and <strong>900-word</strong> essay (four body
+              paragraphs) run through the same <code>splitIntoChunks</code> logic as a real run, then sum exact prompt
+              character lengths + representative JSON outputs; chunk count follows the splitter (often in the mid-20s).
             </p>
             <dl class="model-cost-estimate__stats">
               <div class="model-cost-estimate__row">
@@ -172,12 +164,13 @@
               </div>
             </dl>
             <p class="model-cost-estimate__rates" id="modelCostRates"></p>
+            <p class="hint model-cost-estimate__methodology" id="modelCostMethodology"></p>
             <p class="error model-cost-estimate__error" id="modelCostError" role="alert" hidden></p>
             <p class="hint model-cost-estimate__disclaimer">
-              Token counts are <strong>rough</strong> (every request includes large shared system prompts). Dollar amounts
-              use <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer">OpenRouter’s listed
-              rates</a> for the selected slug; your invoice may differ slightly. <strong>Free</strong> slugs bill at
-              $0/M on OpenRouter but share capacity limits.
+              Token figures come from <strong>measured prompt strings</strong> in this app (plus representative JSON
+              outputs); char→token ratios are approximate. Dollar amounts use
+              <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer">OpenRouter’s listed
+              rates</a>. <strong>Free</strong> slugs bill at $0/M on OpenRouter but share capacity limits.
             </p>
           </div>
           <p class="hint model-free-tier-hint">

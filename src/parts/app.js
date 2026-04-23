@@ -132,16 +132,16 @@ const KEY_MODEL_TIER = 'ib-grader-model-tier';
 const OPENROUTER_MODELS_BY_TIER = {
   premium: [
     { id: 'anthropic/claude-opus-4.6', label: 'Claude Opus 4.6' },
-    { id: 'openai/gpt-5.4-pro', label: 'GPT-5.4 Pro' },
-  ],
-  paid: [
-    { id: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
     { id: 'openai/gpt-5.4', label: 'GPT-5.4' },
     { id: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (preview)' },
   ],
   accessible: [
-    { id: 'deepseek/deepseek-chat-v3.0324', label: 'DeepSeek V3' },
+    /** OpenRouter id uses hyphens: `…-v3-0324`, not `…-v3.0324`. */
+    { id: 'deepseek/deepseek-chat-v3-0324', label: 'DeepSeek V3' },
     { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)' },
+    { id: 'openai/gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+    { id: 'anthropic/claude-haiku-4.5', label: 'Claude Haiku 4.5' },
+    { id: 'x-ai/grok-4-fast', label: 'Grok 4 Fast' },
   ],
   free: [
     { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Instruct (free)' },
@@ -150,7 +150,14 @@ const OPENROUTER_MODELS_BY_TIER = {
   ],
 };
 
-const MODEL_TIER_ORDER = ['premium', 'paid', 'accessible', 'free'];
+const MODEL_TIER_ORDER = ['premium', 'accessible', 'free'];
+
+/** Removed or renamed slugs / tiers from earlier builds → current catalog id. */
+const LEGACY_OPENROUTER_MODEL_ID = {
+  'deepseek/deepseek-chat-v3.0324': 'deepseek/deepseek-chat-v3-0324',
+  'openai/gpt-5.4-pro': 'openai/gpt-5.4',
+  'anthropic/claude-sonnet-4.6': 'anthropic/claude-opus-4.6',
+};
 
 function allKnownOpenRouterModelIds() {
   const s = new Set();
@@ -177,35 +184,6 @@ function countHolisticPassesForChunkCount(n) {
   }
   return h;
 }
-
-/**
- * Rough token/call profile for a typical full workflow (reading + holistics + one A–D score call).
- * Numbers are order-of-magnitude only (large shared system prompts every request).
- */
-const TYPICAL_RUN_PROFILE = (() => {
-  const nChunks = 26;
-  const holistics = countHolisticPassesForChunkCount(nChunks);
-  const CHUNK_IN = 11_800;
-  const CHUNK_OUT = 1_900;
-  const HOL_IN = 13_200;
-  const HOL_OUT = 1_100;
-  const SCORE_IN = 15_500;
-  const SCORE_OUT = 2_100;
-  const readCalls = nChunks;
-  const scoreCalls = 1;
-  const totalCalls = readCalls + holistics + scoreCalls;
-  const inputTok = readCalls * CHUNK_IN + holistics * HOL_IN + SCORE_IN;
-  const outputTok = readCalls * CHUNK_OUT + holistics * HOL_OUT + SCORE_OUT;
-  return {
-    nChunks,
-    holistics,
-    readCalls,
-    scoreCalls,
-    totalCalls,
-    inputTok,
-    outputTok,
-  };
-})();
 
 let _openRouterPricingMap = null;
 
@@ -423,20 +401,13 @@ function getParaLabel(chunkIdx, paraStartSet) {
 }
 
 /**
- * Read one chunk. Returns { notes, annotations }.
- * Notes are passed forward to the next chunk. Annotations are not.
- * @param {string}  sourceText
- * @param {string}  currentChunk
- * @param {string|null} prevChunk      — 1 chunk before current
- * @param {string|null} prev2Chunk     — 2 chunks before current
- * @param {string|null} nextChunk      — 1 chunk after current (lookahead, do not annotate)
- * @param {object}  notes
- * @param {number}  chunkIndex
- * @param {number}  totalChunks
- * @param {string}  paraLabel          — e.g. "Introduction", "Body paragraph 2", "Conclusion"
+ * System instructions for one sequential chunk read (same text as sent to the model).
+ * @param {number} chunkIndex
+ * @param {number} totalChunks
+ * @param {string} paraLabel
  */
-async function readOneChunk(sourceText, currentChunk, prevChunk, prev2Chunk, nextChunk, notes, chunkIndex, totalChunks, paraLabel) {
-  const system = `You are an IB English A Paper 1 examiner reading a complete student essay for the first time.
+function buildReadChunkSystemPrompt(chunkIndex, totalChunks, paraLabel) {
+  return `You are an IB English A Paper 1 examiner reading a complete student essay for the first time.
 
 The essay is a full analytical response to a literary source text — it has an introduction, body paragraphs, and a conclusion, totalling roughly ${totalChunks * CHUNK_TARGET_WORDS} words. You are reading it sequentially in ${totalChunks} small chunks because you are building your notes progressively as you read, exactly as a human examiner would. The chunked delivery is only a reading mechanism — your goal is to form a holistic assessment of the entire essay.
 
@@ -518,7 +489,7 @@ ANNOTATION TYPES:
 A_STAR     ★  Interpretation extends beyond literal to implication, symbolism, cultural/thematic resonance — correctly
 A_CHECK    ✓  Some implications identified but analysis stops at first level of interpretation
 A_CROSS    ✗  Predominantly literal or surface-level; paraphrase substitutes for interpretation; misreadings or failure to appreciate context around quotes
-A_QUESTION ?  Reasoning is tenuous or unconvincing; cannot see the relationship between evidence and claim
+A_QUESTION ?  **Unconvincing interpretive reasoning (Criterion A):** the student’s analysis at this spot does **not** read as adequately **supported** by the evidence and/or by the **chain of reasoning** they give — the move feels **thin, asserted, or under-argued**, so you are **not persuaded** that their **conclusion** (the interpretive point they want you to accept) **follows** from what they have shown. This is **not** only “vague wording”: mark A? when the **warrant is weak** (e.g. quotation or paraphrase **does not** bear the weight of the claim, **non sequitur**, **overreach** from slim textual support, **missing steps** between text and interpretation). **In the annotation note field, elaborate in detail:** (1) what **claim** or **conclusion** the student is asking you to accept; (2) what **evidence/reasoning** they actually supply in the anchored span; (3) **why** that fails to convince — be specific about the **gap** (what would need to be shown, or what alternative reading the text allows).
 A_CURVY    ~  Not the best quote/evidence choice to support this point
 A_EXCLAIM  !  Understands local meaning and implications but not the broader meaning of the text
 
@@ -564,8 +535,10 @@ Return ONLY a valid JSON object with exactly two top-level keys: "notes" and "an
 Each annotation: target ("current"|"prev"), anchor (3–8 verbatim words), criterion ("A"|"B"|"C"|"D"), type (one of the annotation codes), note (brief examiner note).
 
 No markdown. No extra fields. No commentary outside the JSON.`;
+}
 
-  const user = `SOURCE PASSAGE (for reference):
+function buildReadChunkUserMessage(sourceText, prev2Chunk, prevChunk, currentChunk, nextChunk, notes, chunkIndex, totalChunks, paraLabel) {
+  return `SOURCE PASSAGE (for reference):
 ${sourceText}
 
 ---
@@ -587,6 +560,15 @@ ${nextChunk ?? '[None — this is the last chunk.]'}
 ---
 YOUR ACCUMULATED NOTES SO FAR:
 ${JSON.stringify(notes, null, 2)}`;
+}
+
+/**
+ * Read one chunk. Returns { notes, annotations }.
+ * Notes are passed forward to the next chunk. Annotations are not.
+ */
+async function readOneChunk(sourceText, currentChunk, prevChunk, prev2Chunk, nextChunk, notes, chunkIndex, totalChunks, paraLabel) {
+  const system = buildReadChunkSystemPrompt(chunkIndex, totalChunks, paraLabel);
+  const user = buildReadChunkUserMessage(sourceText, prev2Chunk, prevChunk, currentChunk, nextChunk, notes, chunkIndex, totalChunks, paraLabel);
 
   // Wrap API call + JSON parse in retry-with-backoff so a single transient
   // glitch (5xx, timeout, truncated JSON, rate-limit) doesn't abort the pass.
@@ -886,11 +868,7 @@ CONCLUSION WEIGHTING: A Paper 1 conclusion alone rarely warrants a **large** **n
 Return ONLY a JSON object: **overallImpression** with A, B, C, D each an object with keys **band**, **position**, **confidence**, **shift** (string: **"unknown"** or **signed** **integer** **"-8"**…**"8"** as **in** the **API** **schema**), and **note** (string, no [SHIFT: …] suffix). The **app** will **recompute** **shift** from your **previous** and **new** **band+position** (**9-rung** **rung** **delta**) and **clamp** **confidence** to the **%**-read **rules** — still output **fields** **as** **if** final. No markdown. No other keys.`;
 }
 
-/**
- * Dedicated API call: refine overallImpression only (after each pair of reading chunks).
- */
-async function updateHolisticImpressionPass(sourceText, chunks, paraStartSet, chunkIndexEnd, totalChunks, notes, allAnnotations) {
-  const system = buildHolisticImpressionSystemPrompt(chunkIndexEnd, totalChunks);
+function buildHolisticPassUserMessage(sourceText, chunks, paraStartSet, chunkIndexEnd, totalChunks, notes, allAnnotations) {
   const notesLight = {
     thesis: notes.thesis,
     reasoning: notes.reasoning,
@@ -898,7 +876,7 @@ async function updateHolisticImpressionPass(sourceText, chunks, paraStartSet, ch
     concerns: notes.concerns,
     feeling: notes.feeling,
   };
-  const user = `SOURCE PASSAGE (for reference):
+  return `SOURCE PASSAGE (for reference):
 ${sourceText}
 
 ---
@@ -919,6 +897,14 @@ ${JSON.stringify(notes.overallImpression ?? initialNotes().overallImpression, nu
 ---
 ALL ANNOTATIONS SO FAR (${allAnnotations.length}):
 ${JSON.stringify(annotationsForHolisticPrompt(allAnnotations), null, 2)}`;
+}
+
+/**
+ * Dedicated API call: refine overallImpression only (after each pair of reading chunks).
+ */
+async function updateHolisticImpressionPass(sourceText, chunks, paraStartSet, chunkIndexEnd, totalChunks, notes, allAnnotations) {
+  const system = buildHolisticImpressionSystemPrompt(chunkIndexEnd, totalChunks);
+  const user = buildHolisticPassUserMessage(sourceText, chunks, paraStartSet, chunkIndexEnd, totalChunks, notes, allAnnotations);
 
   const parsed = await withRetry(async (attempt) => {
     const raw = await callApi(system, user, HOLISTIC_PASS_SCHEMA);
@@ -1021,33 +1007,26 @@ Register: consistently academic prose throughout, or informal intrusions? Any er
   },
 };
 
-/**
- * Score all four criteria in a single API call.
- * Uses reading notes, holistic impression, and annotation evidence.
- *
- * @param {object}   notes       - Final accumulated reading notes.
- * @param {object[]} annotations - All annotations from the reading pass.
- * @param {string[]} chunks      - Essay chunks (used for word-count estimate).
- * @returns {Promise<{ A, B, C, D }>}  Each value: { score (0–5), keyStrengths, keyWeaknesses, bandBoundary, justification }
- */
-async function scoreAllCriteria(notes, annotations, chunks) {
-  const approxWords = chunks.length * CHUNK_TARGET_WORDS;
-
-  const focusBlock = ['A', 'B', 'C', 'D'].map(k => {
+function buildScoreCriterionFocusBlock() {
+  return ['A', 'B', 'C', 'D'].map(k => {
     const { name, focus } = CRITERION_DESCRIPTORS[k];
     return `━━ ${name} ━━\nFOCUS:\n${focus}`;
   }).join('\n\n');
+}
 
-  // Summarise annotations per criterion for the prompt
+function buildScoreAllCriteriaAnnBlock(annotations) {
   const annByCrit = { A: [], B: [], C: [], D: [] };
   for (const a of annotations) {
     if (annByCrit[a.criterion]) annByCrit[a.criterion].push(`[${a.type}] "${a.anchor}" — ${a.note}`);
   }
-  const annBlock = ['A', 'B', 'C', 'D']
+  return ['A', 'B', 'C', 'D']
     .map(k => `Criterion ${k}:\n${annByCrit[k].length ? annByCrit[k].join('\n') : '(none)'}`)
     .join('\n\n');
+}
 
-  const system = `You are a senior IB English A Paper 1 SL/HL examiner and moderator.
+function buildScoreAllCriteriaSystemPrompt(approxWords) {
+  const focusBlock = buildScoreCriterionFocusBlock();
+  return `You are a senior IB English A Paper 1 SL/HL examiner and moderator.
 
 You have just finished a complete sequential reading of a student essay (~${approxWords} words). During reading you took progressive notes, applied examiner annotations at key moments, and formed a holistic overall impression per criterion. You are now awarding final marks **0–5** for each of the four criteria.
 
@@ -1120,8 +1099,10 @@ For EACH criterion return:
 • keyWeaknesses: 1–3 short bullet points — concrete weaknesses (same)
 • bandBoundary: one sentence — why this score and not the adjacent score (e.g. why 4 not 5, or why 0 not 1)
 • justification: 3–5 sentences — professional IB feedback; lead from holistic quality, then note any upward/downward adjustment from the pattern in notes or annotations; avoid meta-phrases like "as noted in the reading notes".`;
+}
 
-  const user = `HOLISTIC IMPRESSION (per criterion):
+function buildScoreAllCriteriaUserMessage(notes, annBlock) {
+  return `HOLISTIC IMPRESSION (per criterion):
 ${JSON.stringify(notes.overallImpression ?? {}, null, 2)}
 
 READING NOTES:
@@ -1129,10 +1110,230 @@ ${JSON.stringify({ thesis: notes.thesis, reasoning: notes.reasoning, concerns: n
 
 ANNOTATION EVIDENCE:
 ${annBlock}`;
+}
+
+/**
+ * Score all four criteria in a single API call.
+ * Uses reading notes, holistic impression, and annotation evidence.
+ */
+async function scoreAllCriteria(notes, annotations, chunks) {
+  const approxWords = chunks.length * CHUNK_TARGET_WORDS;
+  const annBlock = buildScoreAllCriteriaAnnBlock(annotations);
+  const system = buildScoreAllCriteriaSystemPrompt(approxWords);
+  const user = buildScoreAllCriteriaUserMessage(notes, annBlock);
 
   const raw = await callApi(system, user, SCORE_ALL_SCHEMA);
   return parseJson(raw);
 }
+
+/** Bills are per token; in-browser we measure UTF-16 code units then convert (see TYPICAL_RUN_PROFILE.methodologyLabel). */
+function approxInputTokensFromChars(charCount) {
+  return Math.max(0, Math.ceil(charCount / 4));
+}
+
+function approxOutputTokensFromChars(charCount) {
+  return Math.max(0, Math.ceil(charCount / 3.5));
+}
+
+function typicalRunSyntheticWordBlob(targetWords, seedPrefix) {
+  const cycl = ['analysis', 'argument', 'author', 'image', 'reader', 'essay', 'meaning', 'effect', 'structure', 'language', 'source', 'passage', 'technique', 'claim', 'evidence'];
+  const parts = [];
+  for (let w = 0; w < targetWords; w++) {
+    parts.push(`${cycl[w % cycl.length]}-${seedPrefix}${w}`);
+  }
+  return parts.join(' ');
+}
+
+function typicalRunSyntheticEssayForSplit(totalWords, paragraphs) {
+  const per = Math.floor(totalWords / paragraphs);
+  const paras = [];
+  for (let p = 0; p < paragraphs; p++) {
+    const extra = p === paragraphs - 1 ? totalWords - per * paragraphs : 0;
+    paras.push(typicalRunSyntheticWordBlob(per + extra, `p${p}`));
+  }
+  return paras.join('\n\n');
+}
+
+function syntheticNotesForTypicalRun(chunkIndex, totalChunks) {
+  const pct = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+  const thesis = chunkIndex >= 2
+    ? 'The student argues that the author uses patterning and contrast to qualify human frustration within social order.'
+    : '';
+  const nodeCount = Math.max(1, Math.min(20, Math.round((chunkIndex + 1) * (20 / totalChunks))));
+  const reasoning = Array.from({ length: nodeCount }, (_, i) => ({
+    text: `Reasoning node ${i + 1}: links ${['motif', 'structure', 'register', 'tone'][i % 4]} to the essay’s line on meaning; execution reads ${['thin', 'mixed', 'competent', 'clear'][i % 4]} at ${pct}% read.`,
+    depth: i % 3,
+  }));
+  const concerns = chunkIndex >= Math.floor(totalChunks * 0.3)
+    ? ['Macro concern: evidence sometimes outpaces interpretive control.', 'Some paragraphs repeat moves without advancing the thesis line.']
+    : [];
+  return {
+    thesis,
+    reasoning,
+    readerState: `First-read state at chunk ${chunkIndex + 1}/${totalChunks} (~${pct}%): tracking cumulative quality and argument shape.`,
+    concerns,
+    feeling: {
+      A: chunkIndex > 0 ? 'A: local interpretation mostly anchored; occasional generalisation.' : '',
+      B: chunkIndex > 0 ? 'B: technique naming uneven; some sound mechanism–effect, some shallow.' : '',
+      C: chunkIndex > 0 ? 'C: organisation broadly followable; mid-essay drift in focus.' : '',
+      D: chunkIndex > 0 ? 'D: academic register held; phrasing sometimes imprecise.' : '',
+    },
+    overallImpression: initialNotes().overallImpression,
+  };
+}
+
+function syntheticOverallImpressionForTypicalRun(chunkIndexEnd, totalChunks) {
+  const pct = Math.round(((chunkIndexEnd + 1) / totalChunks) * 100);
+  const para = (band, pos) => {
+    const base = 'Holistic read: extent and quality across the essay so far; anchor to intro and body balance. ';
+    const filler = 'Wording scales with read progress. '.repeat(3) + 'x'.repeat(Math.min(320, 80 + pct * 3));
+    return {
+      band, position: pos, confidence: pct <= 40 ? 'low' : pct < 70 ? 'medium' : 'medium',
+      shift: '0',
+      note: base + filler,
+    };
+  };
+  return {
+    A: para('mid', 2),
+    B: para('mid', 2),
+    C: para('mid', 2),
+    D: para('mid', 2),
+  };
+}
+
+function syntheticAnnotationsForTypicalRunUpTo(endChunkIdx) {
+  const types = ['A_CHECK', 'B_CHECK', 'B_CROSS', 'C_CHECK', 'D_CHECK', 'A_STAR'];
+  const out = [];
+  for (let c = 0; c <= endChunkIdx; c++) {
+    const count = 4 + (c % 3);
+    for (let j = 0; j < count; j++) {
+      out.push({
+        chunkIndex: c,
+        criterion: ['A', 'B', 'C', 'D'][j % 4],
+        type: types[(c + j) % types.length],
+        anchor: `anchor phrase chunk ${c} mark ${j}`,
+        note: 'Examiner note: ties observation to criterion expectations for calibration.',
+      });
+    }
+  }
+  return out;
+}
+
+function syntheticChunkReadResponseJson(totalChunks, chunkIndex) {
+  const notes = syntheticNotesForTypicalRun(chunkIndex, totalChunks);
+  const annotations = Array.from({ length: 5 }, (_, j) => ({
+    target: j % 2 === 0 ? 'current' : 'prev',
+    anchor: `short anchor text ${chunkIndex} ${j}`,
+    criterion: ['A', 'B', 'C', 'D'][j % 4],
+    type: ['A_CHECK', 'B_CHECK', 'C_SIGNPOST', 'D_AWK', 'B_STAR'][j],
+    note: 'Brief rationale for this mark.',
+  }));
+  return JSON.stringify({ notes, annotations });
+}
+
+function syntheticHolisticResponseJson(totalChunks, chunkIndexEnd) {
+  return JSON.stringify({ overallImpression: syntheticOverallImpressionForTypicalRun(chunkIndexEnd, totalChunks) });
+}
+
+function syntheticScoreAllResponseJson() {
+  const mk = (s) => ({
+    score: s,
+    keyStrengths: ['Sustained argument discipline on key paragraphs.', 'Some precise technique–effect moves in the body.'],
+    keyWeaknesses: ['Uneven depth when moving beyond literal reading.', 'Organisation drifts in later sections.'],
+    bandBoundary: 'This is a representative boundary sentence for cost sizing, not a real mark.',
+    justification: 'Representative four-sentence justification body for token estimate. '.repeat(2)
+      + 'It mirrors the requested length in the scorer prompt without claiming a real essay result.',
+  });
+  return JSON.stringify({ A: mk(3), B: mk(3), C: mk(3), D: mk(3) });
+}
+
+/**
+ * Sizes the “typical essay run” by concatenating the **exact** strings this app sends (examiner background + builders),
+ * using a synthetic source/essay run through `splitIntoChunks`. Output side uses **representative JSON** matching each schema’s shape.
+ */
+function computeTypicalRunProfileFromPrompts() {
+  const scenario = {
+    sourceWords: 650,
+    essayWords: 900,
+    bodyParagraphs: 4,
+  };
+  const sourceText = typicalRunSyntheticWordBlob(scenario.sourceWords, 'src');
+  const studentText = typicalRunSyntheticEssayForSplit(scenario.essayWords, scenario.bodyParagraphs);
+  const { chunks, paraStartSet } = splitIntoChunks(studentText);
+  const nChunks = chunks.length;
+  const holistics = countHolisticPassesForChunkCount(nChunks);
+  const bg = EXAMINER_TRAINING_BACKGROUND;
+
+  let sumInputChars = 0;
+  let sumOutChars = 0;
+
+  for (let i = 0; i < nChunks; i++) {
+    const notes = syntheticNotesForTypicalRun(i, nChunks);
+    const prev = i > 0 ? chunks[i - 1] : null;
+    const prev2 = i > 1 ? chunks[i - 2] : null;
+    const next = i < nChunks - 1 ? chunks[i + 1] : null;
+    const paraLabel = getParaLabel(i, paraStartSet);
+    const sys = buildReadChunkSystemPrompt(i, nChunks, paraLabel);
+    const usr = buildReadChunkUserMessage(sourceText, prev2, prev, chunks[i], next, notes, i, nChunks, paraLabel);
+    sumInputChars += (bg + sys + usr).length;
+    sumOutChars += syntheticChunkReadResponseJson(nChunks, i).length;
+  }
+
+  for (let i = 0; i < nChunks; i++) {
+    const runHolistic = (i + 1) % 2 === 0 || i === nChunks - 1;
+    const chunkPct = (i + 1) / nChunks;
+    if (!(runHolistic && chunkPct >= 0.2)) continue;
+
+    const chunkIndexEnd = i;
+    const annotations = syntheticAnnotationsForTypicalRunUpTo(chunkIndexEnd);
+    const priorOi = chunkIndexEnd > 0
+      ? syntheticOverallImpressionForTypicalRun(chunkIndexEnd - 1, nChunks)
+      : initialNotes().overallImpression;
+    const notesForHolistic = {
+      ...syntheticNotesForTypicalRun(chunkIndexEnd, nChunks),
+      overallImpression: priorOi,
+    };
+
+    const hSys = buildHolisticImpressionSystemPrompt(chunkIndexEnd, nChunks);
+    const hUsr = buildHolisticPassUserMessage(sourceText, chunks, paraStartSet, chunkIndexEnd, nChunks, notesForHolistic, annotations);
+    sumInputChars += (bg + hSys + hUsr).length;
+    sumOutChars += syntheticHolisticResponseJson(nChunks, chunkIndexEnd).length;
+  }
+
+  const finalNotes = {
+    ...syntheticNotesForTypicalRun(nChunks - 1, nChunks),
+    overallImpression: syntheticOverallImpressionForTypicalRun(nChunks - 1, nChunks),
+  };
+  const finalAnnotations = syntheticAnnotationsForTypicalRunUpTo(nChunks - 1);
+  const approxWords = nChunks * CHUNK_TARGET_WORDS;
+  const sSys = buildScoreAllCriteriaSystemPrompt(approxWords);
+  const sUsr = buildScoreAllCriteriaUserMessage(finalNotes, buildScoreAllCriteriaAnnBlock(finalAnnotations));
+  sumInputChars += (bg + sSys + sUsr).length;
+  sumOutChars += syntheticScoreAllResponseJson().length;
+
+  const totalCalls = nChunks + holistics + 1;
+  const inputTok = approxInputTokensFromChars(sumInputChars);
+  const outputTok = approxOutputTokensFromChars(sumOutChars);
+
+  return {
+    nChunks,
+    holistics,
+    readCalls: nChunks,
+    scoreCalls: 1,
+    totalCalls,
+    inputTok,
+    outputTok,
+    inputCharsTotal: sumInputChars,
+    outputCharsTotal: sumOutChars,
+    scenario,
+    methodologyLabel:
+      `Prompts: synthetic ${scenario.sourceWords}-word source + ${scenario.essayWords}-word essay → ${nChunks} chunks via splitIntoChunks. `
+      + `Input = Σ char length of EXAMINER_TRAINING_BACKGROUND + each system + user (UTF-16 code units). `
+      + `Output = representative JSON per step; tokens ≈ input_chars÷4, output_chars÷3.5 (real BPE ±~10–25%).`,
+  };
+}
+
+const TYPICAL_RUN_PROFILE = computeTypicalRunProfileFromPrompts();
 
 /** Legacy per-criterion scorer kept for compatibility (not used by new Score button). */
 async function scoreFromNotes(criterion, notes, chunks) {
@@ -1639,7 +1840,7 @@ const ANNOTATION_META = {
   A_STAR:     { label: 'A★',   title: 'Criterion A — Perceptive interpretation: extends beyond literal to implication/symbolism/resonance' },
   A_CHECK:    { label: 'A✓',   title: 'Criterion A — Some implications identified but stops at first level of interpretation' },
   A_CROSS:    { label: 'A✗',   title: 'Criterion A — Predominantly literal/surface; paraphrase substitutes for interpretation; possible misreading' },
-  A_QUESTION: { label: 'A?',   title: 'Criterion A — Tenuous or unconvincing reasoning; relationship between evidence and claim unclear' },
+  A_QUESTION: { label: 'A?',   title: 'Criterion A — Unconvincing analysis: evidence/reasoning does not support the interpretive claim; conclusion not persuasively warranted (note: detail the gap)' },
   A_CURVY:    { label: 'A~',   title: 'Criterion A — Not the best evidence choice to support this point' },
   A_EXCLAIM:  { label: 'A!',   title: 'Criterion A — Understands local meaning but not the broader meaning of the text' },
   B_STAR:     { label: 'B★',   title: 'Criterion B — Evaluates how this authorial choice achieves effect, or weaves several choices / broader authorial pattern' },
@@ -2520,8 +2721,7 @@ async function handleRunAll() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const MODEL_TIER_COPY = {
-  premium:    { lead: 'Premium tier',    rest: ' — Top models on OpenRouter; expect the highest per-token cost.' },
-  paid:       { lead: 'Paid tier',       rest: ' — Strong default models at typical commercial rates.' },
+  premium:    { lead: 'Premium tier',    rest: ' — Strong commercial models on OpenRouter (higher per-token cost than Accessible / Free).' },
   accessible: { lead: 'Accessible tier', rest: ' — Mid-cost options with solid capability.' },
   free:       { lead: 'Free routing',    rest: ' — Uses OpenRouter :free endpoints (shared quotas, variable latency).' },
 };
@@ -2533,18 +2733,31 @@ async function updateModelCostPanel(modelId) {
   const usdEl   = $('modelCostUsd');
   const rateEl  = $('modelCostRates');
   const errEl   = $('modelCostError');
+  const methEl  = $('modelCostMethodology');
   const p = TYPICAL_RUN_PROFILE;
   if (callsEl) {
     callsEl.textContent = `${p.totalCalls} total (${p.readCalls} chunk reads + ${p.holistics} holistic + ${p.scoreCalls} score)`;
   }
-  if (inEl)  inEl.textContent  = `~${p.inputTok.toLocaleString()} (prompt)`;
-  if (outEl) outEl.textContent = `~${p.outputTok.toLocaleString()} (completion)`;
+  if (inEl) {
+    inEl.textContent = `~${p.inputTok.toLocaleString()} prompt tok (≈${p.inputCharsTotal.toLocaleString()} chars ÷4)`;
+  }
+  if (outEl) {
+    outEl.textContent = `~${p.outputTok.toLocaleString()} completion tok (≈${p.outputCharsTotal.toLocaleString()} chars ÷3.5)`;
+  }
+  if (methEl) methEl.textContent = p.methodologyLabel ?? '';
   if (usdEl) usdEl.textContent = '…';
   if (rateEl) rateEl.textContent = '';
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
 
   try {
     const map = await fetchOpenRouterPricingMap();
+    if (!map[modelId]) {
+      if (usdEl) usdEl.textContent = '—';
+      if (rateEl) {
+        rateEl.textContent = `No pricing row for “${modelId}” on OpenRouter — check the slug at openrouter.ai/models.`;
+      }
+      return;
+    }
     const pr = map[modelId] ?? {};
     const pin = parseOpenRouterUsdPerToken(pr.prompt);
     const pout = parseOpenRouterUsdPerToken(pr.completion);
@@ -2577,14 +2790,23 @@ function boot() {
 
   const knownIds = allKnownOpenRouterModelIds();
   let savedModel = getModel();
+  const legacy = LEGACY_OPENROUTER_MODEL_ID[savedModel];
+  if (legacy) {
+    savedModel = legacy;
+    setModel(savedModel);
+  }
   if (!knownIds.has(savedModel)) {
     savedModel = DEFAULT_OPENROUTER_MODEL;
     setModel(savedModel);
   }
 
-  let tier = tierForModelId(savedModel)
-    ?? localStorage.getItem(KEY_MODEL_TIER)
-    ?? 'free';
+  let storedTier = localStorage.getItem(KEY_MODEL_TIER);
+  if (storedTier === 'paid') {
+    storedTier = 'premium';
+    localStorage.setItem(KEY_MODEL_TIER, 'premium');
+  }
+
+  let tier = tierForModelId(savedModel) ?? storedTier ?? 'free';
   if (!MODEL_TIER_ORDER.includes(tier)) tier = 'free';
   localStorage.setItem(KEY_MODEL_TIER, tier);
 
