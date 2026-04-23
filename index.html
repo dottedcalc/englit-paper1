@@ -192,8 +192,13 @@
           name="studentParagraph"
           rows="10"
           class="textarea-compact"
-          placeholder="Paste your Paper 1 analytical response (full essay)…"
+          placeholder="Paste your full Paper 1 essay as plain text. Avoid invisible characters, extra line breaks or blank lines, and stray symbols that can confuse the classifier…"
         ></textarea>
+        <p class="hint input-panel__paste-hint">
+          <strong>Format warning:</strong> Clean up pasted text before running analysis — use normal paragraph breaks
+          only. Do not paste excessive blank lines, repeated Enters, zero-width or other invisible characters, or stray
+          symbols; they can cause the paragraph classifier to fail or mis-segment your essay.
+        </p>
 
         <div class="essay-structure-preview" id="essayStructurePreview" hidden aria-live="polite"></div>
 

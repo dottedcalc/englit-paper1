@@ -1928,6 +1928,11 @@ textarea {
   margin-top: 0.25rem;
 }
 
+.input-panel__paste-hint {
+  margin-top: 0.5rem;
+  max-width: 52rem;
+}
+
 .student-head {
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
