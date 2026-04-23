@@ -1779,6 +1779,53 @@ h1 {
   margin: 0.55rem 0 0;
   font-size: 0.82rem;
   color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.model-cost-estimate__token-title {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--ink-muted);
+  margin-bottom: 0.2rem;
+}
+
+.model-cost-estimate__token-line {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+.model-cost-suffix {
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.model-cost-sep {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.model-cost-tok {
+  display: inline;
+  font-size: 1.08rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.model-cost-estimate__rates--premium .model-cost-tok {
+  color: #6d28d9;
+}
+
+.model-cost-estimate__rates--accessible .model-cost-tok {
+  color: #2178c3;
+}
+
+.model-cost-estimate__rates--free .model-cost-tok {
+  color: #1a7a52;
 }
 
 .model-cost-estimate__error {

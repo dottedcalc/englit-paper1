@@ -2722,6 +2722,29 @@ const MODEL_TIER_COPY = {
   free:       { lead: 'Free routing',    rest: ' — Uses OpenRouter :free endpoints (shared quotas, variable latency).' },
 };
 
+function modelCostTierForPricing(modelId) {
+  const t = tierForModelId(modelId) ?? localStorage.getItem(KEY_MODEL_TIER) ?? 'free';
+  return ['premium', 'accessible', 'free'].includes(t) ? t : 'free';
+}
+
+/** Renders “Token Pricing” + tier-colored bold $/M figures (aligns with tier button accent). */
+function setModelCostTokenRatesHtml(rateEl, promptPerM, completionPerM, modelId) {
+  if (!rateEl) return;
+  const t = modelCostTierForPricing(modelId);
+  const pm = Number(promptPerM);
+  const cm = Number(completionPerM);
+  rateEl.className = `model-cost-estimate__rates model-cost-estimate__rates--${t}`;
+  rateEl.innerHTML =
+    '<span class="model-cost-estimate__token-title">Token Pricing</span> '
+    + '<span class="model-cost-estimate__token-line" role="text">'
+    + `<strong class="model-cost-tok">$${pm.toFixed(4)}</strong>`
+    + '<span class="model-cost-suffix">/M prompt</span>'
+    + '<span class="model-cost-sep"> · </span>'
+    + `<strong class="model-cost-tok">$${cm.toFixed(4)}</strong>`
+    + '<span class="model-cost-suffix">/M completion</span>'
+    + '</span>';
+}
+
 async function updateModelCostPanel(modelId) {
   const callsEl = $('modelCostCalls');
   const inEl    = $('modelCostIn');
@@ -2740,7 +2763,10 @@ async function updateModelCostPanel(modelId) {
     outEl.textContent = `~${p.outputTok.toLocaleString()}`;
   }
   if (usdEl) usdEl.textContent = '…';
-  if (rateEl) rateEl.textContent = '';
+  if (rateEl) {
+    rateEl.className = 'model-cost-estimate__rates';
+    rateEl.textContent = '';
+  }
   if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
 
   try {
@@ -2748,6 +2774,7 @@ async function updateModelCostPanel(modelId) {
     if (!map[modelId]) {
       if (usdEl) usdEl.textContent = '—';
       if (rateEl) {
+        rateEl.className = 'model-cost-estimate__rates';
         rateEl.textContent = `No pricing row for “${modelId}” on OpenRouter — check the slug at openrouter.ai/models.`;
       }
       return;
@@ -2760,11 +2787,14 @@ async function updateModelCostPanel(modelId) {
     if (rateEl) {
       const pm = pin * 1e6;
       const cm = pout * 1e6;
-      rateEl.textContent = `OpenRouter list: $${pm.toFixed(4)}/M prompt · $${cm.toFixed(4)}/M completion`;
+      setModelCostTokenRatesHtml(rateEl, pm, cm, modelId);
     }
   } catch (e) {
     if (usdEl) usdEl.textContent = '—';
-    if (rateEl) rateEl.textContent = '';
+    if (rateEl) {
+      rateEl.className = 'model-cost-estimate__rates';
+      rateEl.textContent = '';
+    }
     if (errEl) {
       errEl.hidden = false;
       errEl.textContent = `Could not load live rates: ${e?.message ?? e}. Cost left blank — see openrouter.ai/models.`;
